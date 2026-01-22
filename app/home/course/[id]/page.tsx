@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useToast } from "@/components/ui/use-toast"
 import Loading from "../../loading"
 
 
@@ -35,6 +36,7 @@ export default function CoursePage() {
   const [user, setUser] = useState<any>(null)
   const [isVisible, setIsVisible] = useState(false)
   const [activeNav, setActiveNav] = useState("dashboard")
+  const { toast } = useToast()
   const [currentLessonId, setCurrentLessonId] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [course, setCourse] = useState<any>(null)
@@ -112,6 +114,58 @@ export default function CoursePage() {
   const handleNext = () => {
     if (currentIndex < allLessons.length - 1) {
       setCurrentLessonId(allLessons[currentIndex + 1].id)
+    }
+  }
+
+  const handleComplete = async () => {
+    if (!currentLesson || currentLesson.completed) return
+
+    try {
+      const response = await fetch(`/api/courses/${courseId}/lessons/${currentLesson.id}/complete`, {
+        method: "POST",
+      })
+      const data = await response.json()
+
+      if (response.ok) {
+        // Update local state
+        const updatedCourse = { ...course }
+        updatedCourse.modules = updatedCourse.modules.map((m: any) => ({
+          ...m,
+          lessons: m.lessons.map((l: any) =>
+            l.id === currentLesson.id ? { ...l, completed: true } : l
+          )
+        }))
+
+        // Update progress if applicable
+        if (data.progress !== undefined) {
+          updatedCourse.progress = data.progress
+          updatedCourse.completedLessons = data.completedCount
+        } else {
+          updatedCourse.completedLessons = (updatedCourse.completedLessons || 0) + 1
+          updatedCourse.progress = Math.round((updatedCourse.completedLessons / updatedCourse.totalLessons) * 100)
+        }
+
+        setCourse(updatedCourse)
+
+        toast({
+          title: "Lesson Completed!",
+          description: "Well done! Keep going to reach your goal.",
+        })
+
+        // Auto-advance to next lesson after a short delay
+        if (currentIndex < allLessons.length - 1) {
+          setTimeout(() => {
+            handleNext()
+          }, 2000)
+        }
+      }
+    } catch (error) {
+      console.error("Error completing lesson:", error)
+      toast({
+        title: "Error",
+        description: "Failed to mark lesson as complete. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -239,11 +293,15 @@ export default function CoursePage() {
                       </div>
                     </div>
                     {currentLesson.completed ? (
-                      <span className="px-3 py-1 bg-green-500/20 text-green-500 rounded-full text-sm font-medium">
+                      <div className="flex items-center gap-2 px-3 py-1 bg-green-500/20 text-green-500 rounded-full text-sm font-medium">
+                        <CheckCircle className="w-4 h-4" />
                         Completed
-                      </span>
+                      </div>
                     ) : (
-                      <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+                      <Button
+                        onClick={handleComplete}
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 transition-all hover:scale-105 active:scale-95"
+                      >
                         Mark as Complete
                       </Button>
                     )}
