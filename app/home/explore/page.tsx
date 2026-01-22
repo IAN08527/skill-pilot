@@ -41,24 +41,34 @@ function ExploreContent() {
   const [activeCategory, setActiveCategory] = useState("all")
   const [showHistory, setShowHistory] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [courses, setCourses] = useState<any[]>([])
+  const [coursesLoading, setCoursesLoading] = useState(true)
   const searchRef = useRef<HTMLDivElement>(null)
   const { history, addToHistory, removeFromHistory, clearHistory, getFilteredHistory } = useSearchHistory()
 
   useEffect(() => {
     setIsVisible(true)
     const fetchData = async () => {
+      setCoursesLoading(true)
       try {
-        const response = await fetch("/api/user/profile")
-        const data = await response.json()
-        if (data.user) setUser(data.user)
+        const [userRes, coursesRes] = await Promise.all([
+          fetch("/api/user/profile"),
+          fetch(`/api/courses?category=${activeCategory}&q=${searchQuery}`)
+        ])
+        const userData = await userRes.json()
+        const coursesData = await coursesRes.json()
+
+        if (userData.user) setUser(userData.user)
+        if (coursesData.courses) setCourses(coursesData.courses)
       } catch (error) {
-        console.error("Error fetching user:", error)
+        console.error("Error fetching data:", error)
       } finally {
         setIsLoading(false)
+        setCoursesLoading(false)
       }
     }
     fetchData()
-  }, [])
+  }, [activeCategory, searchQuery])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -112,69 +122,7 @@ function ExploreContent() {
     { id: "ai", label: "AI & ML" },
   ]
 
-  const courses = [
-    {
-      id: 1,
-      title: "Introduction to Machine Learning",
-      instructor: "Dr. Sarah Chen",
-      duration: "8 hours",
-      rating: 4.9,
-      students: 12500,
-      category: "ai",
-    },
-    {
-      id: 2,
-      title: "React & Next.js Masterclass",
-      instructor: "John Developer",
-      duration: "12 hours",
-      rating: 4.8,
-      students: 8900,
-      category: "programming",
-    },
-    {
-      id: 3,
-      title: "UI/UX Design Fundamentals",
-      instructor: "Emily Design",
-      duration: "6 hours",
-      rating: 4.7,
-      students: 6700,
-      category: "design",
-    },
-    {
-      id: 4,
-      title: "Python for Data Science",
-      instructor: "Mike Analytics",
-      duration: "10 hours",
-      rating: 4.9,
-      students: 15200,
-      category: "programming",
-    },
-    {
-      id: 5,
-      title: "Digital Marketing Strategy",
-      instructor: "Lisa Marketing",
-      duration: "5 hours",
-      rating: 4.6,
-      students: 4300,
-      category: "business",
-    },
-    {
-      id: 6,
-      title: "Deep Learning with TensorFlow",
-      instructor: "Dr. Alex Neural",
-      duration: "15 hours",
-      rating: 4.9,
-      students: 7800,
-      category: "ai",
-    },
-  ]
-
-  const filteredCourses = courses.filter((course) => {
-    const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.instructor.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = activeCategory === "all" || course.category === activeCategory
-    return matchesSearch && matchesCategory
-  })
+  const filteredCourses = courses
 
   return (
     <div className="min-h-screen bg-background text-foreground flex page-transition">

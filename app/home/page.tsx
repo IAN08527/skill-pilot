@@ -36,6 +36,7 @@ export default function HomePage() {
   const [activeNav, setActiveNav] = useState("dashboard")
   const [showHistory, setShowHistory] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [enrolledCourses, setEnrolledCourses] = useState<any[]>([])
   const searchRef = useRef<HTMLDivElement>(null)
   const { history, addToHistory, removeFromHistory, clearHistory, getFilteredHistory } = useSearchHistory()
 
@@ -43,16 +44,19 @@ export default function HomePage() {
     setIsVisible(true)
     const fetchData = async () => {
       try {
-        const [profileRes, statsRes] = await Promise.all([
+        const [profileRes, statsRes, coursesRes] = await Promise.all([
           fetch("/api/user/profile"),
-          fetch("/api/user/stats")
+          fetch("/api/user/stats"),
+          fetch("/api/user/courses")
         ])
 
         const profileData = await profileRes.json()
         const statsData = await statsRes.json()
+        const coursesData = await coursesRes.json()
 
         if (profileData.user) setUser(profileData.user)
         if (statsData.stats) setStatsData(statsData.stats)
+        if (coursesData.courses) setEnrolledCourses(coursesData.courses)
       } catch (error) {
         console.error("Error fetching data:", error)
       } finally {
@@ -331,20 +335,61 @@ export default function HomePage() {
               }`}>
               <h2 className="text-xl font-semibold text-foreground mb-4">Continue Learning</h2>
               <div className="glass-panel rounded-2xl p-6 lg:p-8">
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                    <BookOpen className="w-8 h-8 text-primary" />
+                {enrolledCourses.length > 0 ? (
+                  <div className="space-y-4">
+                    {enrolledCourses.slice(0, 1).map((course) => (
+                      <div key={course.id} className="flex flex-col md:flex-row gap-6 items-center">
+                        <div className="w-full md:w-48 aspect-video bg-primary/10 rounded-xl flex items-center justify-center">
+                          <BookOpen className="w-10 h-10 text-primary" />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <h3 className="text-xl font-bold text-foreground mb-2">{course.title}</h3>
+                          <p className="text-muted-foreground mb-4 line-clamp-2">{course.description}</p>
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className="flex-1">
+                              <div className="flex justify-between text-sm mb-1">
+                                <span className="text-muted-foreground">Progress</span>
+                                <span className="text-primary font-medium">{course.progress}%</span>
+                              </div>
+                              <div className="h-2 bg-primary/10 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-primary transition-all duration-500"
+                                  style={{ width: `${course.progress}%` }}
+                                />
+                              </div>
+                            </div>
+                            <Link href={`/home/course/${course.id}`}>
+                              <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+                                Continue
+                                <ChevronRight className="w-4 h-4 ml-1" />
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {enrolledCourses.length > 1 && (
+                      <Link href="/home/dashboard" className="block text-center text-sm text-primary hover:underline mt-4">
+                        View all {enrolledCourses.length} courses
+                      </Link>
+                    )}
                   </div>
-                  <h3 className="text-lg font-semibold text-foreground mb-2">No courses yet</h3>
-                  <p className="text-muted-foreground mb-6 max-w-md">
-                    Start exploring our course catalog to begin your learning journey.
-                  </p>
-                  <Link href="/home/explore">
-                    <Button className="bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 hover:scale-105">
-                      Explore Courses
-                    </Button>
-                  </Link>
-                </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                      <BookOpen className="w-8 h-8 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-foreground mb-2">No courses yet</h3>
+                    <p className="text-muted-foreground mb-6 max-w-md">
+                      Start exploring our course catalog to begin your learning journey.
+                    </p>
+                    <Link href="/home/explore">
+                      <Button className="bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 hover:scale-105">
+                        Explore Courses
+                      </Button>
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           </div>

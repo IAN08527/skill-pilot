@@ -24,181 +24,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { ThemeToggle } from "@/components/theme-toggle"
+import Loading from "../../loading"
 
-// Mock course data
-const courseData: Record<string, {
-  id: number
-  title: string
-  description: string
-  instructor: string
-  totalLessons: number
-  completedLessons: number
-  progress: number
-  modules: Array<{
-    id: number
-    title: string
-    lessons: Array<{
-      id: number
-      title: string
-      duration: string
-      type: "video" | "reading" | "quiz"
-      completed: boolean
-    }>
-  }>
-}> = {
-  "1": {
-    id: 1,
-    title: "Machine Learning Basics",
-    description: "Learn the fundamentals of machine learning, including supervised learning, unsupervised learning, and neural networks.",
-    instructor: "Dr. Sarah Chen",
-    totalLessons: 24,
-    completedLessons: 18,
-    progress: 75,
-    modules: [
-      {
-        id: 1,
-        title: "Introduction to Machine Learning",
-        lessons: [
-          { id: 1, title: "What is Machine Learning?", duration: "15 min", type: "video", completed: true },
-          { id: 2, title: "Types of Machine Learning", duration: "20 min", type: "video", completed: true },
-          { id: 3, title: "Setting Up Your Environment", duration: "10 min", type: "reading", completed: true },
-          { id: 4, title: "Module 1 Quiz", duration: "15 min", type: "quiz", completed: true },
-        ]
-      },
-      {
-        id: 2,
-        title: "Supervised Learning",
-        lessons: [
-          { id: 5, title: "Linear Regression", duration: "25 min", type: "video", completed: true },
-          { id: 6, title: "Logistic Regression", duration: "30 min", type: "video", completed: true },
-          { id: 7, title: "Decision Trees", duration: "25 min", type: "video", completed: true },
-          { id: 8, title: "Hands-on Practice", duration: "45 min", type: "reading", completed: true },
-          { id: 9, title: "Module 2 Quiz", duration: "20 min", type: "quiz", completed: true },
-        ]
-      },
-      {
-        id: 3,
-        title: "Unsupervised Learning",
-        lessons: [
-          { id: 10, title: "Clustering Algorithms", duration: "30 min", type: "video", completed: true },
-          { id: 11, title: "K-Means Clustering", duration: "25 min", type: "video", completed: true },
-          { id: 12, title: "Dimensionality Reduction", duration: "35 min", type: "video", completed: true },
-          { id: 13, title: "PCA Deep Dive", duration: "20 min", type: "reading", completed: true },
-          { id: 14, title: "Module 3 Quiz", duration: "15 min", type: "quiz", completed: true },
-        ]
-      },
-      {
-        id: 4,
-        title: "Neural Networks",
-        lessons: [
-          { id: 15, title: "Introduction to Neural Networks", duration: "30 min", type: "video", completed: true },
-          { id: 16, title: "Activation Functions", duration: "20 min", type: "video", completed: true },
-          { id: 17, title: "Backpropagation", duration: "35 min", type: "video", completed: true },
-          { id: 18, title: "Building Your First Neural Network", duration: "45 min", type: "reading", completed: false },
-          { id: 19, title: "Module 4 Quiz", duration: "20 min", type: "quiz", completed: false },
-        ]
-      },
-      {
-        id: 5,
-        title: "Deep Learning",
-        lessons: [
-          { id: 20, title: "Convolutional Neural Networks", duration: "40 min", type: "video", completed: false },
-          { id: 21, title: "Recurrent Neural Networks", duration: "35 min", type: "video", completed: false },
-          { id: 22, title: "Transfer Learning", duration: "25 min", type: "video", completed: false },
-          { id: 23, title: "Final Project", duration: "120 min", type: "reading", completed: false },
-          { id: 24, title: "Course Final Exam", duration: "60 min", type: "quiz", completed: false },
-        ]
-      },
-    ]
-  },
-  "2": {
-    id: 2,
-    title: "React & Next.js",
-    description: "Master modern React development with Next.js, including server components, app router, and best practices.",
-    instructor: "John Developer",
-    totalLessons: 32,
-    completedLessons: 14,
-    progress: 45,
-    modules: [
-      {
-        id: 1,
-        title: "React Fundamentals",
-        lessons: [
-          { id: 1, title: "Introduction to React", duration: "20 min", type: "video", completed: true },
-          { id: 2, title: "JSX and Components", duration: "25 min", type: "video", completed: true },
-          { id: 3, title: "Props and State", duration: "30 min", type: "video", completed: true },
-          { id: 4, title: "Hooks Deep Dive", duration: "40 min", type: "video", completed: true },
-          { id: 5, title: "Module 1 Quiz", duration: "15 min", type: "quiz", completed: true },
-        ]
-      },
-      {
-        id: 2,
-        title: "Advanced React",
-        lessons: [
-          { id: 6, title: "Context API", duration: "25 min", type: "video", completed: true },
-          { id: 7, title: "Custom Hooks", duration: "30 min", type: "video", completed: true },
-          { id: 8, title: "Performance Optimization", duration: "35 min", type: "video", completed: true },
-          { id: 9, title: "Testing React Apps", duration: "40 min", type: "video", completed: true },
-          { id: 10, title: "Module 2 Quiz", duration: "20 min", type: "quiz", completed: true },
-        ]
-      },
-      {
-        id: 3,
-        title: "Next.js Basics",
-        lessons: [
-          { id: 11, title: "Introduction to Next.js", duration: "20 min", type: "video", completed: true },
-          { id: 12, title: "App Router", duration: "30 min", type: "video", completed: true },
-          { id: 13, title: "Server Components", duration: "35 min", type: "video", completed: true },
-          { id: 14, title: "Data Fetching", duration: "40 min", type: "video", completed: true },
-          { id: 15, title: "Module 3 Quiz", duration: "15 min", type: "quiz", completed: false },
-        ]
-      },
-      {
-        id: 4,
-        title: "Advanced Next.js",
-        lessons: [
-          { id: 16, title: "API Routes", duration: "25 min", type: "video", completed: false },
-          { id: 17, title: "Authentication", duration: "45 min", type: "video", completed: false },
-          { id: 18, title: "Database Integration", duration: "50 min", type: "video", completed: false },
-          { id: 19, title: "Deployment", duration: "30 min", type: "video", completed: false },
-          { id: 20, title: "Module 4 Quiz", duration: "20 min", type: "quiz", completed: false },
-        ]
-      },
-    ]
-  },
-  "3": {
-    id: 3,
-    title: "Python for Data Science",
-    description: "Learn Python programming with a focus on data science applications, including pandas, numpy, and visualization.",
-    instructor: "Mike Analytics",
-    totalLessons: 28,
-    completedLessons: 6,
-    progress: 20,
-    modules: [
-      {
-        id: 1,
-        title: "Python Basics",
-        lessons: [
-          { id: 1, title: "Introduction to Python", duration: "15 min", type: "video", completed: true },
-          { id: 2, title: "Variables and Data Types", duration: "20 min", type: "video", completed: true },
-          { id: 3, title: "Control Flow", duration: "25 min", type: "video", completed: true },
-          { id: 4, title: "Functions", duration: "30 min", type: "video", completed: true },
-          { id: 5, title: "Module 1 Quiz", duration: "15 min", type: "quiz", completed: true },
-        ]
-      },
-      {
-        id: 2,
-        title: "Data Structures",
-        lessons: [
-          { id: 6, title: "Lists and Tuples", duration: "25 min", type: "video", completed: true },
-          { id: 7, title: "Dictionaries and Sets", duration: "25 min", type: "video", completed: false },
-          { id: 8, title: "Working with Files", duration: "20 min", type: "video", completed: false },
-          { id: 9, title: "Module 2 Quiz", duration: "15 min", type: "quiz", completed: false },
-        ]
-      },
-    ]
-  }
-}
+
 
 export default function CoursePage() {
   const params = useParams()
@@ -209,34 +37,43 @@ export default function CoursePage() {
   const [activeNav, setActiveNav] = useState("dashboard")
   const [currentLessonId, setCurrentLessonId] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [course, setCourse] = useState<any>(null)
+  const [courseLoading, setCourseLoading] = useState(true)
 
   const courseId = params.id as string
-  const course = courseData[courseId] || courseData["1"]
 
   useEffect(() => {
     setIsVisible(true)
     const fetchData = async () => {
       try {
-        const response = await fetch("/api/user/profile")
-        const data = await response.json()
-        if (data.user) setUser(data.user)
+        const [profileRes, courseRes] = await Promise.all([
+          fetch("/api/user/profile"),
+          fetch(`/api/courses/${courseId}`)
+        ])
+        const profileData = await profileRes.json()
+        const courseData = await courseRes.json()
+
+        if (profileData.user) setUser(profileData.user)
+        if (courseData.course) {
+          setCourse(courseData.course)
+          // Find first incomplete lesson
+          for (const module of courseData.course.modules || []) {
+            const incompleteLesson = module.lessons?.find((l: any) => !l.completed)
+            if (incompleteLesson) {
+              setCurrentLessonId(incompleteLesson.id)
+              break
+            }
+          }
+        }
       } catch (error) {
-        console.error("Error fetching user:", error)
+        console.error("Error fetching data:", error)
       } finally {
         setIsLoading(false)
+        setCourseLoading(false)
       }
     }
     fetchData()
-
-    // Find first incomplete lesson
-    for (const module of course.modules) {
-      const incompleteLesson = module.lessons.find(l => !l.completed)
-      if (incompleteLesson) {
-        setCurrentLessonId(incompleteLesson.id)
-        break
-      }
-    }
-  }, [course.modules])
+  }, [courseId])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -258,9 +95,13 @@ export default function CoursePage() {
     }
   }
 
-  const currentLesson = course.modules.flatMap(m => m.lessons).find(l => l.id === currentLessonId)
-  const allLessons = course.modules.flatMap(m => m.lessons)
-  const currentIndex = allLessons.findIndex(l => l.id === currentLessonId)
+  if (courseLoading || !course) {
+    return <Loading />
+  }
+
+  const currentLesson = course.modules?.flatMap((m: any) => m.lessons).find((l: any) => l.id === currentLessonId)
+  const allLessons = course.modules?.flatMap((m: any) => m.lessons) || []
+  const currentIndex = allLessons.findIndex((l: any) => l.id === currentLessonId)
 
   const handlePrevious = () => {
     if (currentIndex > 0) {
@@ -449,7 +290,7 @@ export default function CoursePage() {
 
             {/* Modules List */}
             <div className="max-h-[calc(100vh-200px)] overflow-y-auto">
-              {course.modules.map((module, moduleIndex) => (
+              {course.modules.map((module: any, moduleIndex: number) => (
                 <div key={module.id} className="border-b border-border last:border-b-0">
                   <div className="p-4 bg-muted/50">
                     <h4 className="font-medium text-foreground text-sm">
@@ -457,7 +298,7 @@ export default function CoursePage() {
                     </h4>
                   </div>
                   <div className="divide-y divide-border">
-                    {module.lessons.map((lesson) => {
+                    {module.lessons.map((lesson: any) => {
                       const LessonIcon = getLessonIcon(lesson.type)
                       const isActive = lesson.id === currentLessonId
 

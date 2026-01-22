@@ -43,24 +43,30 @@ export default function DashboardPage() {
   const [isVisible, setIsVisible] = useState(false)
   const [activeNav, setActiveNav] = useState("dashboard")
   const [isLoading, setIsLoading] = useState(true)
+  const [enrolledCourses, setEnrolledCourses] = useState<any[]>([])
+  const [coursesLoading, setCoursesLoading] = useState(true)
 
   useEffect(() => {
     setIsVisible(true)
     const fetchData = async () => {
       try {
-        const [profileRes, statsRes] = await Promise.all([
+        const [profileRes, statsRes, coursesRes] = await Promise.all([
           fetch("/api/user/profile"),
-          fetch("/api/user/stats")
+          fetch("/api/user/stats"),
+          fetch("/api/user/courses")
         ])
         const profileData = await profileRes.json()
         const statsData = await statsRes.json()
+        const coursesData = await coursesRes.json()
 
         if (profileData.user) setUser(profileData.user)
         if (statsData.stats) setStatsData(statsData.stats)
+        if (coursesData.courses) setEnrolledCourses(coursesData.courses)
       } catch (error) {
         console.error("Error fetching data:", error)
       } finally {
         setIsLoading(false)
+        setCoursesLoading(false)
       }
     }
     fetchData()
@@ -84,50 +90,7 @@ export default function DashboardPage() {
     { label: "Achievements", value: statsData?.achievements || "0", icon: Trophy, change: "+1 this week" },
   ]
 
-  const enrolledCourses = [
-    {
-      id: 1,
-      title: "Machine Learning Basics",
-      progress: 75,
-      lessons: 24,
-      completed: 18,
-      instructor: "Dr. Sarah Chen",
-      duration: "8 hours",
-      description: "Learn the fundamentals of machine learning, including supervised learning, unsupervised learning, and neural networks. This course covers practical implementations using Python and popular ML libraries.",
-      lastAccessed: "2 hours ago",
-      nextLesson: "Building Your First Neural Network",
-      skills: ["Python", "TensorFlow", "Data Analysis", "Neural Networks"],
-      certificate: true
-    },
-    {
-      id: 2,
-      title: "React & Next.js",
-      progress: 45,
-      lessons: 32,
-      completed: 14,
-      instructor: "John Developer",
-      duration: "12 hours",
-      description: "Master modern React development with Next.js. Learn server components, app router, data fetching patterns, and deployment strategies for production applications.",
-      lastAccessed: "1 day ago",
-      nextLesson: "API Routes and Server Actions",
-      skills: ["React", "Next.js", "TypeScript", "API Development"],
-      certificate: true
-    },
-    {
-      id: 3,
-      title: "Python for Data Science",
-      progress: 20,
-      lessons: 28,
-      completed: 6,
-      instructor: "Mike Analytics",
-      duration: "10 hours",
-      description: "Learn Python programming with a focus on data science applications. Cover pandas, numpy, matplotlib, and statistical analysis techniques.",
-      lastAccessed: "3 days ago",
-      nextLesson: "Working with Dictionaries",
-      skills: ["Python", "Pandas", "NumPy", "Data Visualization"],
-      certificate: true
-    },
-  ]
+
 
   return (
     <div className="min-h-screen bg-background text-foreground flex page-transition">
@@ -342,7 +305,7 @@ export default function DashboardPage() {
                           <div>
                             <h4 className="font-semibold text-foreground mb-3">Skills You'll Learn</h4>
                             <div className="flex flex-wrap gap-2">
-                              {course.skills.map((skill) => (
+                              {course.skills.map((skill: string) => (
                                 <span
                                   key={skill}
                                   className="px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium"
