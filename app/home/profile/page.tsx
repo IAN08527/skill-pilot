@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { 
-  BookOpen, 
-  Plus, 
-  LayoutDashboard, 
-  User, 
+import { useRouter } from "next/navigation"
+import {
+  BookOpen,
+  Plus,
+  LayoutDashboard,
+  User,
   LogOut,
   Sparkles,
   Award,
@@ -33,13 +34,44 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 
+import { createClient } from "@/lib/supabase/client"
+
 export default function ProfilePage() {
+  const router = useRouter()
+  const supabase = createClient()
+  const [user, setUser] = useState<any>(null)
+  const [statsData, setStatsData] = useState<any>(null)
   const [isVisible, setIsVisible] = useState(false)
   const [activeNav, setActiveNav] = useState("profile")
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     setIsVisible(true)
+    const fetchData = async () => {
+      try {
+        const [profileRes, statsRes] = await Promise.all([
+          fetch("/api/user/profile"),
+          fetch("/api/user/stats")
+        ])
+
+        const profileData = await profileRes.json()
+        const statsData = await statsRes.json()
+
+        if (profileData.user) setUser(profileData.user)
+        if (statsData.stats) setStatsData(statsData.stats)
+      } catch (error) {
+        console.error("Error fetching data:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchData()
   }, [])
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push("/login")
+  }
 
   const navItems = [
     { id: "explore", icon: BookOpen, label: "Explore Courses", href: "/home/explore" },
@@ -48,10 +80,10 @@ export default function ProfilePage() {
   ]
 
   const userStats = [
-    { label: "Courses Completed", value: "8", icon: BookOpen },
-    { label: "Hours Learned", value: "156", icon: Clock },
-    { label: "Skills Earned", value: "24", icon: Target },
-    { label: "Achievements", value: "12", icon: Trophy },
+    { label: "Courses Completed", value: statsData?.courses_completed || "0", icon: BookOpen },
+    { label: "Hours Learned", value: statsData?.hours_learned || "0", icon: Clock },
+    { label: "Skills Earned", value: statsData?.skills_gained || "0", icon: Target },
+    { label: "Achievements", value: statsData?.achievements || "0", icon: Trophy },
   ]
 
   const certificates = [
@@ -96,9 +128,8 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex page-transition">
       {/* Sidebar */}
-      <aside className={`fixed left-0 top-0 bottom-0 w-20 lg:w-64 glass-panel border-r border-border flex flex-col z-40 transition-all duration-500 ${
-        isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
-      }`}>
+      <aside className={`fixed left-0 top-0 bottom-0 w-20 lg:w-64 glass-panel border-r border-border flex flex-col z-40 transition-all duration-500 ${isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
+        }`}>
         {/* Logo */}
         <div className="p-4 lg:p-6 border-b border-border">
           <Link href="/" className="flex items-center gap-3">
@@ -116,15 +147,13 @@ export default function ProfilePage() {
               key={item.id}
               href={item.href}
               onClick={() => setActiveNav(item.id)}
-              className={`flex items-center gap-3 px-3 lg:px-4 py-3 rounded-xl transition-all duration-300 hover:scale-[1.02] group ${
-                activeNav === item.id
-                  ? "bg-primary/10 text-primary border border-primary/30"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}
+              className={`flex items-center gap-3 px-3 lg:px-4 py-3 rounded-xl transition-all duration-300 hover:scale-[1.02] group ${activeNav === item.id
+                ? "bg-primary/10 text-primary border border-primary/30"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
             >
-              <item.icon className={`w-5 h-5 flex-shrink-0 transition-transform duration-300 group-hover:scale-110 ${
-                activeNav === item.id ? "text-primary" : ""
-              }`} />
+              <item.icon className={`w-5 h-5 flex-shrink-0 transition-transform duration-300 group-hover:scale-110 ${activeNav === item.id ? "text-primary" : ""
+                }`} />
               <span className="hidden lg:block font-medium">{item.label}</span>
             </Link>
           ))}
@@ -140,26 +169,25 @@ export default function ProfilePage() {
               <User className="w-5 h-5 text-primary-foreground" />
             </div>
             <div className="hidden lg:block flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">Profile</p>
+              <p className="text-sm font-medium text-foreground truncate">{user?.full_name || user?.user_metadata?.full_name || "Profile"}</p>
               <p className="text-xs text-muted-foreground truncate">View & Edit</p>
             </div>
           </Link>
-          <Link
-            href="/"
-            className="flex items-center gap-3 px-3 lg:px-4 py-3 mt-2 rounded-xl text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-all duration-300 group"
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 lg:px-4 py-3 mt-2 rounded-xl text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-all duration-300 group font-medium"
           >
             <LogOut className="w-5 h-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
-            <span className="hidden lg:block font-medium">Logout</span>
-          </Link>
+            <span className="hidden lg:block">Logout</span>
+          </button>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 ml-20 lg:ml-64 min-h-screen">
         {/* Header */}
-        <header className={`sticky top-0 z-30 glass-panel border-b border-border p-4 lg:p-6 transition-all duration-500 delay-100 ${
-          isVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-10"
-        }`}>
+        <header className={`sticky top-0 z-30 glass-panel border-b border-border p-4 lg:p-6 transition-all duration-500 delay-100 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-10"
+          }`}>
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-foreground">My Profile</h1>
             <ThemeToggle />
@@ -169,9 +197,8 @@ export default function ProfilePage() {
         {/* Content */}
         <div className="p-4 lg:p-8">
           {/* Profile Card */}
-          <div className={`glass-panel rounded-2xl p-6 lg:p-8 mb-8 transition-all duration-500 delay-200 ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}>
+          <div className={`glass-panel rounded-2xl p-6 lg:p-8 mb-8 transition-all duration-500 delay-200 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+            }`}>
             <div className="flex flex-col lg:flex-row items-start lg:items-center gap-6">
               {/* Avatar */}
               <div className="relative group">
@@ -187,14 +214,14 @@ export default function ProfilePage() {
               <div className="flex-1">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-1">John Doe</h2>
+                    <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-1">{user?.full_name || user?.user_metadata?.full_name || "User"}</h2>
                     <p className="text-muted-foreground flex items-center gap-2">
                       <Mail className="w-4 h-4" />
-                      john.doe@example.com
+                      {user?.email || "No email"}
                     </p>
                     <p className="text-muted-foreground flex items-center gap-2 mt-1">
                       <Calendar className="w-4 h-4" />
-                      Member since October 2025
+                      Member since {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "Loading..."}
                     </p>
                   </div>
                   <Button variant="outline" size="sm" className="hidden lg:flex items-center gap-2 bg-transparent">
@@ -208,7 +235,7 @@ export default function ProfilePage() {
             {/* Stats */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
               {userStats.map((stat, index) => (
-                <div 
+                <div
                   key={stat.label}
                   className="bg-muted rounded-xl p-4 group hover:bg-primary/10 transition-all duration-300"
                   style={{ animationDelay: `${index * 100}ms` }}
@@ -226,9 +253,8 @@ export default function ProfilePage() {
           </div>
 
           {/* Certificates Section */}
-          <div className={`transition-all duration-500 delay-300 ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}>
+          <div className={`transition-all duration-500 delay-300 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+            }`}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
                 <Award className="w-5 h-5 text-primary" />
@@ -241,7 +267,7 @@ export default function ProfilePage() {
               <h3 className="text-lg font-medium text-foreground mb-4">Earned Certificates</h3>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {certificates.map((cert, index) => (
-                  <div 
+                  <div
                     key={cert.id}
                     className="glass-panel rounded-xl p-5 group hover:scale-[1.02] transition-all duration-300"
                     style={{ animationDelay: `${index * 100}ms` }}
@@ -304,7 +330,7 @@ export default function ProfilePage() {
               <h3 className="text-lg font-medium text-foreground mb-4">In Progress</h3>
               <div className="space-y-4">
                 {inProgressCertificates.map((cert, index) => (
-                  <div 
+                  <div
                     key={cert.id}
                     className="glass-panel rounded-xl p-5 group hover:scale-[1.01] transition-all duration-300"
                     style={{ animationDelay: `${index * 100}ms` }}

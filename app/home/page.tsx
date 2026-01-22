@@ -3,12 +3,12 @@
 import React, { useState, useEffect, useRef, Suspense } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { 
-  Search, 
-  BookOpen, 
-  Plus, 
-  LayoutDashboard, 
-  User, 
+import {
+  Search,
+  BookOpen,
+  Plus,
+  LayoutDashboard,
+  User,
   LogOut,
   ChevronRight,
   Sparkles,
@@ -24,18 +24,48 @@ import { useSearchHistory } from "@/hooks/use-search-history"
 import { ThemeToggle } from "@/components/theme-toggle"
 import Loading from "./loading"
 
+import { createClient } from "@/lib/supabase/client"
+
 export default function HomePage() {
   const router = useRouter()
+  const supabase = createClient()
+  const [user, setUser] = useState<any>(null)
+  const [statsData, setStatsData] = useState<any>(null)
   const [isVisible, setIsVisible] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [activeNav, setActiveNav] = useState("dashboard")
   const [showHistory, setShowHistory] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const searchRef = useRef<HTMLDivElement>(null)
   const { history, addToHistory, removeFromHistory, clearHistory, getFilteredHistory } = useSearchHistory()
 
   useEffect(() => {
     setIsVisible(true)
+    const fetchData = async () => {
+      try {
+        const [profileRes, statsRes] = await Promise.all([
+          fetch("/api/user/profile"),
+          fetch("/api/user/stats")
+        ])
+
+        const profileData = await profileRes.json()
+        const statsData = await statsRes.json()
+
+        if (profileData.user) setUser(profileData.user)
+        if (statsData.stats) setStatsData(statsData.stats)
+      } catch (error) {
+        console.error("Error fetching data:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchData()
   }, [])
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push("/login")
+  }
 
   // Close history dropdown when clicking outside
   useEffect(() => {
@@ -99,19 +129,18 @@ export default function HomePage() {
   ]
 
   const stats = [
-    { label: "Courses Enrolled", value: "12", icon: BookOpen },
-    { label: "Hours Learned", value: "48", icon: Clock },
-    { label: "Skills Gained", value: "24", icon: Target },
-    { label: "Progress Rate", value: "78%", icon: TrendingUp },
+    { label: "Courses Enrolled", value: statsData?.courses_enrolled || "0", icon: BookOpen },
+    { label: "Hours Learned", value: statsData?.hours_learned || "0", icon: Clock },
+    { label: "Skills Gained", value: statsData?.skills_gained || "0", icon: Target },
+    { label: "Progress Rate", value: (statsData?.progress_rate || "0") + "%", icon: TrendingUp },
   ]
 
   return (
     <Suspense fallback={<Loading />}>
       <div className="min-h-screen bg-background text-foreground flex page-transition">
         {/* Sidebar */}
-        <aside className={`fixed left-0 top-0 bottom-0 w-20 lg:w-64 glass-panel border-r border-border flex flex-col z-40 transition-all duration-500 ${
-          isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
-        }`}>
+        <aside className={`fixed left-0 top-0 bottom-0 w-20 lg:w-64 glass-panel border-r border-border flex flex-col z-40 transition-all duration-500 ${isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
+          }`}>
           {/* Logo */}
           <div className="p-4 lg:p-6 border-b border-border">
             <Link href="/" className="flex items-center gap-3">
@@ -129,16 +158,14 @@ export default function HomePage() {
                 key={item.id}
                 href={item.href}
                 onClick={() => setActiveNav(item.id)}
-                className={`flex items-center gap-3 px-3 lg:px-4 py-3 rounded-xl transition-all duration-300 hover:scale-[1.02] group ${
-                  activeNav === item.id
-                    ? "bg-primary/10 text-primary border border-primary/30"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
+                className={`flex items-center gap-3 px-3 lg:px-4 py-3 rounded-xl transition-all duration-300 hover:scale-[1.02] group ${activeNav === item.id
+                  ? "bg-primary/10 text-primary border border-primary/30"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
                 style={{ animationDelay: `${index * 100}ms` }}
               >
-                <item.icon className={`w-5 h-5 flex-shrink-0 transition-transform duration-300 group-hover:scale-110 ${
-                  activeNav === item.id ? "text-primary" : ""
-                }`} />
+                <item.icon className={`w-5 h-5 flex-shrink-0 transition-transform duration-300 group-hover:scale-110 ${activeNav === item.id ? "text-primary" : ""
+                  }`} />
                 <span className="hidden lg:block font-medium">{item.label}</span>
               </Link>
             ))}
@@ -154,26 +181,25 @@ export default function HomePage() {
                 <User className="w-5 h-5 text-primary-foreground" />
               </div>
               <div className="hidden lg:block flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">User</p>
+                <p className="text-sm font-medium text-foreground truncate">{user?.full_name || user?.user_metadata?.full_name || user?.email || "User"}</p>
                 <p className="text-xs text-muted-foreground truncate">View Profile</p>
               </div>
             </Link>
-            <Link
-              href="/"
-              className="flex items-center gap-3 px-3 lg:px-4 py-3 mt-2 rounded-xl text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-all duration-300 group"
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-3 lg:px-4 py-3 mt-2 rounded-xl text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-all duration-300 group"
             >
               <LogOut className="w-5 h-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
               <span className="hidden lg:block font-medium">Logout</span>
-            </Link>
+            </button>
           </div>
         </aside>
 
         {/* Main Content */}
         <main className="flex-1 ml-20 lg:ml-64 min-h-screen">
           {/* Header */}
-          <header className={`sticky top-0 z-30 glass-panel border-b border-border p-4 lg:p-6 transition-all duration-500 delay-100 ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-10"
-          }`}>
+          <header className={`sticky top-0 z-30 glass-panel border-b border-border p-4 lg:p-6 transition-all duration-500 delay-100 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-10"
+            }`}>
             <div className="flex items-center gap-4">
               {/* Search Bar with History */}
               <div ref={searchRef} className="relative flex-1 max-w-2xl">
@@ -237,11 +263,10 @@ export default function HomePage() {
           {/* Content Area */}
           <div className="p-4 lg:p-8">
             {/* Welcome Section */}
-            <div className={`mb-8 transition-all duration-500 delay-200 ${
-              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-            }`}>
+            <div className={`mb-8 transition-all duration-500 delay-200 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              }`}>
               <h1 className="text-3xl lg:text-4xl font-bold text-foreground mb-2">
-                Welcome back!
+                Welcome back, {user?.full_name?.split(' ')[0] || user?.user_metadata?.full_name?.split(' ')[0] || "Learner"}!
               </h1>
               <p className="text-muted-foreground text-lg">
                 {"Ready to continue your learning journey? Here's what you can do today."}
@@ -249,12 +274,11 @@ export default function HomePage() {
             </div>
 
             {/* Stats Grid */}
-            <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 transition-all duration-500 delay-300 ${
-              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-            }`}>
+            <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 transition-all duration-500 delay-300 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              }`}>
               {stats.map((stat, index) => (
-                <div 
-                  key={stat.label} 
+                <div
+                  key={stat.label}
                   className="glass-panel rounded-2xl p-4 lg:p-6 group hover:scale-[1.02] transition-all duration-300"
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
@@ -270,9 +294,8 @@ export default function HomePage() {
             </div>
 
             {/* Quick Actions */}
-            <div className={`mb-8 transition-all duration-500 delay-400 ${
-              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-            }`}>
+            <div className={`mb-8 transition-all duration-500 delay-400 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              }`}>
               <h2 className="text-xl font-semibold text-foreground mb-4">Quick Actions</h2>
               <div className="grid md:grid-cols-3 gap-4 lg:gap-6">
                 {quickActions.map((action, index) => (
@@ -284,7 +307,7 @@ export default function HomePage() {
                   >
                     {/* Gradient Background on Hover */}
                     <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    
+
                     <div className="relative z-10">
                       <div className={`w-14 h-14 rounded-xl ${action.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
                         <action.icon className="w-7 h-7 text-white" />
@@ -304,9 +327,8 @@ export default function HomePage() {
             </div>
 
             {/* Recent Activity */}
-            <div className={`transition-all duration-500 delay-500 ${
-              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-            }`}>
+            <div className={`transition-all duration-500 delay-500 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              }`}>
               <h2 className="text-xl font-semibold text-foreground mb-4">Continue Learning</h2>
               <div className="glass-panel rounded-2xl p-6 lg:p-8">
                 <div className="flex flex-col items-center justify-center py-8 text-center">

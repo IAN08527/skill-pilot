@@ -4,14 +4,15 @@ import React from "react"
 
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Suspense } from "react"
-import { 
-  Search, 
-  BookOpen, 
-  Plus, 
-  LayoutDashboard, 
-  User, 
+import { createClient } from "@/lib/supabase/client"
+import {
+  Search,
+  BookOpen,
+  Plus,
+  LayoutDashboard,
+  User,
   LogOut,
   Sparkles,
   Clock,
@@ -30,18 +31,39 @@ import Loading from "./loading"
 function ExploreContent() {
   const searchParams = useSearchParams()
   const initialQuery = searchParams.get("q") || ""
-  
+  const router = useRouter()
+  const supabase = createClient()
+  const [user, setUser] = useState<any>(null)
+
   const [isVisible, setIsVisible] = useState(false)
   const [searchQuery, setSearchQuery] = useState(initialQuery)
   const [activeNav, setActiveNav] = useState("explore")
   const [activeCategory, setActiveCategory] = useState("all")
   const [showHistory, setShowHistory] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const searchRef = useRef<HTMLDivElement>(null)
   const { history, addToHistory, removeFromHistory, clearHistory, getFilteredHistory } = useSearchHistory()
 
   useEffect(() => {
     setIsVisible(true)
+    const fetchData = async () => {
+      try {
+        const response = await fetch("/api/user/profile")
+        const data = await response.json()
+        if (data.user) setUser(data.user)
+      } catch (error) {
+        console.error("Error fetching user:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchData()
   }, [])
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push("/login")
+  }
 
   useEffect(() => {
     if (initialQuery) {
@@ -149,7 +171,7 @@ function ExploreContent() {
 
   const filteredCourses = courses.filter((course) => {
     const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          course.instructor.toLowerCase().includes(searchQuery.toLowerCase())
+      course.instructor.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = activeCategory === "all" || course.category === activeCategory
     return matchesSearch && matchesCategory
   })
@@ -157,9 +179,8 @@ function ExploreContent() {
   return (
     <div className="min-h-screen bg-background text-foreground flex page-transition">
       {/* Sidebar */}
-      <aside className={`fixed left-0 top-0 bottom-0 w-20 lg:w-64 glass-panel border-r border-border flex flex-col z-40 transition-all duration-500 ${
-        isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
-      }`}>
+      <aside className={`fixed left-0 top-0 bottom-0 w-20 lg:w-64 glass-panel border-r border-border flex flex-col z-40 transition-all duration-500 ${isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
+        }`}>
         {/* Logo */}
         <div className="p-4 lg:p-6 border-b border-border">
           <Link href="/" className="flex items-center gap-3">
@@ -177,15 +198,13 @@ function ExploreContent() {
               key={item.id}
               href={item.href}
               onClick={() => setActiveNav(item.id)}
-              className={`flex items-center gap-3 px-3 lg:px-4 py-3 rounded-xl transition-all duration-300 hover:scale-[1.02] group ${
-                activeNav === item.id
-                  ? "bg-primary/10 text-primary border border-primary/30"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}
+              className={`flex items-center gap-3 px-3 lg:px-4 py-3 rounded-xl transition-all duration-300 hover:scale-[1.02] group ${activeNav === item.id
+                ? "bg-primary/10 text-primary border border-primary/30"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
             >
-              <item.icon className={`w-5 h-5 flex-shrink-0 transition-transform duration-300 group-hover:scale-110 ${
-                activeNav === item.id ? "text-primary" : ""
-              }`} />
+              <item.icon className={`w-5 h-5 flex-shrink-0 transition-transform duration-300 group-hover:scale-110 ${activeNav === item.id ? "text-primary" : ""
+                }`} />
               <span className="hidden lg:block font-medium">{item.label}</span>
             </Link>
           ))}
@@ -201,26 +220,25 @@ function ExploreContent() {
               <User className="w-5 h-5 text-primary-foreground" />
             </div>
             <div className="hidden lg:block flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">User</p>
+              <p className="text-sm font-medium text-foreground truncate">{user?.full_name || user?.user_metadata?.full_name || user?.email || "User"}</p>
               <p className="text-xs text-muted-foreground truncate">View Profile</p>
             </div>
           </Link>
-          <Link
-            href="/"
-            className="flex items-center gap-3 px-3 lg:px-4 py-3 mt-2 rounded-xl text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-all duration-300 group"
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 lg:px-4 py-3 mt-2 rounded-xl text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-all duration-300 group font-medium"
           >
             <LogOut className="w-5 h-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
-            <span className="hidden lg:block font-medium">Logout</span>
-          </Link>
+            <span className="hidden lg:block">Logout</span>
+          </button>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 ml-20 lg:ml-64 min-h-screen">
         {/* Header */}
-        <header className={`sticky top-0 z-30 glass-panel border-b border-border p-4 lg:p-6 transition-all duration-500 delay-100 ${
-          isVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-10"
-        }`}>
+        <header className={`sticky top-0 z-30 glass-panel border-b border-border p-4 lg:p-6 transition-all duration-500 delay-100 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-10"
+          }`}>
           <div className="flex items-center gap-4">
             <div ref={searchRef} className="relative flex-1 max-w-2xl">
               <form onSubmit={handleSearch}>
@@ -287,30 +305,27 @@ function ExploreContent() {
         {/* Content */}
         <div className="p-4 lg:p-8">
           {/* Page Title */}
-          <div className={`mb-6 transition-all duration-500 delay-200 ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}>
+          <div className={`mb-6 transition-all duration-500 delay-200 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+            }`}>
             <h1 className="text-3xl font-bold text-foreground mb-2">Explore Courses</h1>
             <p className="text-muted-foreground">
-              {searchQuery 
-                ? `Showing results for "${searchQuery}"` 
+              {searchQuery
+                ? `Showing results for "${searchQuery}"`
                 : "Discover courses to enhance your skills"}
             </p>
           </div>
 
           {/* Categories */}
-          <div className={`flex flex-wrap gap-2 mb-8 transition-all duration-500 delay-300 ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}>
+          <div className={`flex flex-wrap gap-2 mb-8 transition-all duration-500 delay-300 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+            }`}>
             {categories.map((category) => (
               <button
                 key={category.id}
                 onClick={() => setActiveCategory(category.id)}
-                className={`px-4 py-2 rounded-full transition-all duration-300 ${
-                  activeCategory === category.id
-                    ? "bg-primary text-primary-foreground font-medium"
-                    : "glass-panel text-muted-foreground hover:text-foreground"
-                }`}
+                className={`px-4 py-2 rounded-full transition-all duration-300 ${activeCategory === category.id
+                  ? "bg-primary text-primary-foreground font-medium"
+                  : "glass-panel text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 {category.label}
               </button>
@@ -318,9 +333,8 @@ function ExploreContent() {
           </div>
 
           {/* Course Grid */}
-          <div className={`grid md:grid-cols-2 lg:grid-cols-3 gap-6 transition-all duration-500 delay-400 ${
-            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}>
+          <div className={`grid md:grid-cols-2 lg:grid-cols-3 gap-6 transition-all duration-500 delay-400 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+            }`}>
             {filteredCourses.map((course, index) => (
               <div
                 key={course.id}
@@ -342,7 +356,7 @@ function ExploreContent() {
                     {course.title}
                   </h3>
                   <p className="text-muted-foreground text-sm mb-3">{course.instructor}</p>
-                  
+
                   <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
                     <div className="flex items-center gap-1">
                       <Clock className="w-4 h-4" />
