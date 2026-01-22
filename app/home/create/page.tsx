@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { AIGenerationLoader, generationSteps } from "@/components/ai-generation-loader"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function CreateCoursePage() {
   const router = useRouter()
@@ -34,6 +35,8 @@ export default function CreateCoursePage() {
   const [isGenerated, setIsGenerated] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const [generatedCourseId, setGeneratedCourseId] = useState<string | null>(null)
+  const { toast } = useToast()
   const [formData, setFormData] = useState({
     topic: "",
     goal: "",
@@ -75,17 +78,61 @@ export default function CreateCoursePage() {
   ]
 
   const handleGenerate = async () => {
+    if (!formData.topic || !formData.goal || !formData.duration) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all fields to generate a course.",
+        variant: "destructive"
+      })
+      return
+    }
+
     setIsGenerating(true)
     setCurrentStep(0)
 
-    for (let i = 0; i < generationSteps.length; i++) {
-      setCurrentStep(i)
-      await new Promise((resolve) => setTimeout(resolve, 1500 + Math.random() * 1000))
-    }
+    try {
+      // Start API call in background
+      const genPromise = fetch("/api/courses/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData)
+      })
 
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    setIsGenerating(false)
-    setIsGenerated(true)
+      // Simulate step progress for UX
+      for (let i = 0; i < generationSteps.length; i++) {
+        setCurrentStep(i)
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+      }
+
+      const response = await genPromise
+      const data = await response.json()
+
+      if (response.ok) {
+        setGeneratedCourseId(data.courseId)
+        setIsGenerating(false)
+        setIsGenerated(true)
+
+        toast({
+          title: "Course Generated!",
+          description: "Your personalized learning path is ready.",
+        })
+
+        // Auto redirect after a short delay
+        setTimeout(() => {
+          router.push(`/home/course/${data.courseId}`)
+        }, 2000)
+      } else {
+        throw new Error(data.error || "Failed to generate course")
+      }
+    } catch (error: any) {
+      console.error("Generation error:", error)
+      setIsGenerating(false)
+      toast({
+        title: "Generation Failed",
+        description: error.message || "An unexpected error occurred. Please try again.",
+        variant: "destructive"
+      })
+    }
   }
 
   return (
