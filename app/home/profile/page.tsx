@@ -33,6 +33,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
 
 import { createClient } from "@/lib/supabase/client"
 
@@ -223,144 +229,169 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Certificates Section */}
-          <div className={`transition-all duration-500 delay-300 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-            }`}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-                <Award className="w-5 h-5 text-primary" />
-                My Certificates
-              </h2>
-            </div>
+          {/* Rewards Tabs */}
+          <div className={`transition-all duration-500 delay-300 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+            <Tabs defaultValue="earned" className="w-full">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+                  <Award className="w-6 h-6 text-primary" />
+                  My Achievements
+                </h2>
+                <TabsList className="bg-muted p-1 rounded-xl">
+                  <TabsTrigger value="earned" className="rounded-lg px-4 py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                    Earned ({certificates.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="inprogress" className="rounded-lg px-4 py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                    In Progress ({inProgressCertificates.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="badges" className="rounded-lg px-4 py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                    Badges ({achievements.length})
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
-            {/* Earned Certificates */}
-            <div className="mb-8">
-              <h3 className="text-lg font-medium text-foreground mb-4">Earned Certificates</h3>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {certificates.map((cert: any, index: number) => (
-                  <div
-                    key={cert.id}
-                    className="glass-panel rounded-xl p-5 group hover:scale-[1.02] transition-all duration-300"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    {/* Certificate Icon */}
-                    <div className="w-14 h-14 rounded-xl bg-primary/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                      <Award className="w-7 h-7 text-primary" />
-                    </div>
-
-                    {/* Certificate Info */}
-                    <h4 className="font-semibold text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-                      {cert.title}
-                    </h4>
-                    <p className="text-sm text-muted-foreground mb-1">Issued: {cert.issueDate}</p>
-                    <p className="text-xs text-muted-foreground mb-4">Credential ID: {cert.credential}</p>
-
-                    {/* Actions */}
-                    <div className="flex gap-2">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button size="sm" variant="outline" className="flex-1 bg-transparent">
-                            <Eye className="w-4 h-4 mr-1" />
-                            View
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-lg">
-                          <DialogHeader>
-                            <DialogTitle>Certificate of Completion</DialogTitle>
-                            <DialogDescription>
-                              This certifies that John Doe has successfully completed the course.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="mt-4 p-6 border-2 border-primary/30 rounded-xl bg-primary/5">
-                            <div className="text-center">
-                              <Award className="w-16 h-16 text-primary mx-auto mb-4" />
-                              <h3 className="text-xl font-bold text-foreground mb-2">{cert.title}</h3>
-                              <p className="text-muted-foreground mb-4">
-                                Awarded to <span className="font-semibold text-foreground">John Doe</span>
-                              </p>
-                              <div className="text-sm text-muted-foreground">
-                                <p>Issue Date: {cert.issueDate}</p>
-                                <p>Credential ID: {cert.credential}</p>
+              {/* Earned Certificates Tab */}
+              <TabsContent value="earned" className="mt-0 outline-none">
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {certificates.map((cert: any, index: number) => (
+                    <div
+                      key={cert.id}
+                      className="glass-panel rounded-xl p-5 group hover:scale-[1.02] transition-all duration-300"
+                      style={{ animationDelay: `${index * 100}ms` }}
+                    >
+                      <div className="w-14 h-14 rounded-xl bg-primary/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <Award className="w-7 h-7 text-primary" />
+                      </div>
+                      <h4 className="font-semibold text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+                        {cert.title}
+                      </h4>
+                      <p className="text-sm text-muted-foreground mb-1">Issued: {cert.issueDate}</p>
+                      <p className="text-xs text-muted-foreground mb-4">Credential ID: {cert.credential}</p>
+                      <div className="flex gap-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button size="sm" variant="outline" className="flex-1 bg-transparent">
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-lg">
+                            <DialogHeader>
+                              <DialogTitle>Certificate of Completion</DialogTitle>
+                              <DialogDescription>
+                                This certifies that {user?.full_name || "the user"} has successfully completed the course.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="mt-4 p-6 border-2 border-primary/30 rounded-xl bg-primary/10 relative overflow-hidden">
+                              <div className="absolute top-0 right-0 p-2 opacity-10">
+                                <Sparkles className="w-20 h-20 text-primary" />
+                              </div>
+                              <div className="text-center">
+                                <Award className="w-16 h-16 text-primary mx-auto mb-4" />
+                                <h3 className="text-xl font-bold text-foreground mb-2">{cert.title}</h3>
+                                <p className="text-muted-foreground mb-4">
+                                  Awarded to <span className="font-semibold text-foreground">{user?.full_name || "the user"}</span>
+                                </p>
+                                <div className="text-sm text-muted-foreground">
+                                  <p>Issue Date: {cert.issueDate}</p>
+                                  <p>Credential: {cert.credential}</p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                      <Button size="sm" className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90">
-                        <Download className="w-4 h-4 mr-1" />
-                        Download
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* In Progress */}
-            <div>
-              <h3 className="text-lg font-medium text-foreground mb-4">In Progress</h3>
-              <div className="space-y-4">
-                {inProgressCertificates.map((cert: any, index: number) => (
-                  <div
-                    key={cert.id}
-                    className="glass-panel rounded-xl p-5 group hover:scale-[1.01] transition-all duration-300"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center">
-                          <Award className="w-6 h-6 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                            {cert.title}
-                          </h4>
-                          <p className="text-sm text-muted-foreground">
-                            {cert.remainingLessons} lessons remaining
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-lg font-bold text-primary">{cert.progress}%</span>
-                      </div>
-                    </div>
-                    <Progress value={cert.progress} className="h-2" />
-                    <div className="flex justify-end mt-3">
-                      <Link href="/home/dashboard">
-                        <Button size="sm" variant="ghost" className="text-primary hover:bg-primary/10">
-                          Continue Learning
-                          <ChevronRight className="w-4 h-4 ml-1" />
+                          </DialogContent>
+                        </Dialog>
+                        <Button size="sm" className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 transition-all hover:scale-105">
+                          <Download className="w-4 h-4 mr-1" />
+                          Download
                         </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {certificates.length === 0 && (
+                    <div className="col-span-full border border-dashed border-border rounded-2xl p-12 text-center bg-muted/20">
+                      <Award className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-40" />
+                      <h3 className="text-lg font-medium text-foreground mb-2">No certificates yet</h3>
+                      <p className="text-muted-foreground max-w-xs mx-auto">Complete 100% of any course to earn an official certificate of completion.</p>
+                      <Link href="/home/explore" className="mt-6 inline-block">
+                        <Button variant="outline" className="bg-transparent">Explore Courses</Button>
                       </Link>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+                  )}
+                </div>
+              </TabsContent>
 
-            {/* Achievements */}
-            <div className="mt-8">
-              <h3 className="text-lg font-medium text-foreground mb-4">Achievements & Badges</h3>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {achievements.map((achievement: any, index: number) => (
-                  <div
-                    key={achievement.id}
-                    className="glass-panel rounded-xl p-4 text-center group hover:scale-105 transition-all duration-300"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <div className="text-4xl mb-3 group-hover:animate-bounce">{achievement.icon}</div>
-                    <h4 className="font-semibold text-foreground text-sm">{achievement.title}</h4>
-                    <p className="text-xs text-muted-foreground mt-1">{achievement.date || "Unlocked"}</p>
-                  </div>
-                ))}
-                {achievements.length === 0 && (
-                  <div className="col-span-full border border-dashed border-border rounded-xl p-8 text-center bg-muted/30">
-                    <Trophy className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
-                    <p className="text-muted-foreground">No achievements yet. Keep learning to earn badges!</p>
-                  </div>
-                )}
-              </div>
-            </div>
+              {/* In Progress Tab */}
+              <TabsContent value="inprogress" className="mt-0 outline-none">
+                <div className="grid md:grid-cols-2 gap-4">
+                  {inProgressCertificates.map((cert: any, index: number) => (
+                    <div
+                      key={cert.id}
+                      className="glass-panel rounded-xl p-5 group hover:scale-[1.01] transition-all duration-300"
+                      style={{ animationDelay: `${index * 100}ms` }}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                            <Clock className="w-6 h-6 text-muted-foreground group-hover:text-primary" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                              {cert.title}
+                            </h4>
+                            <p className="text-sm text-muted-foreground italic">
+                              {cert.remainingLessons} lessons to go
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-2xl font-bold text-primary">{cert.progress}%</span>
+                        </div>
+                      </div>
+                      <Progress value={cert.progress} className="h-2 mb-4" />
+                      <div className="flex justify-end">
+                        <Link href={`/home/course/${cert.courseId || cert.id}`}>
+                          <Button size="sm" variant="ghost" className="text-primary hover:bg-primary/10 group/btn">
+                            Continue Learning
+                            <ChevronRight className="w-4 h-4 ml-1 group-hover/btn:translate-x-1 transition-transform" />
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                  {inProgressCertificates.length === 0 && (
+                    <div className="col-span-full border border-dashed border-border rounded-2xl p-12 text-center bg-muted/20">
+                      <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-40" />
+                      <h3 className="text-lg font-medium text-foreground mb-2">Ready to learn?</h3>
+                      <p className="text-muted-foreground max-w-xs mx-auto">Start your first course to track your journey here.</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* Badges Tab */}
+              <TabsContent value="badges" className="mt-0 outline-none">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {achievements.map((achievement: any, index: number) => (
+                    <div
+                      key={achievement.id}
+                      className="glass-panel rounded-xl p-6 text-center group hover:scale-105 transition-all duration-300 bg-gradient-to-br from-transparent to-primary/5 border-primary/10"
+                      style={{ animationDelay: `${index * 100}ms` }}
+                    >
+                      <div className="text-5xl mb-4 group-hover:animate-bounce drop-shadow-lg">{achievement.icon}</div>
+                      <h4 className="font-bold text-foreground text-sm uppercase tracking-wider">{achievement.title}</h4>
+                      <div className="h-px bg-border w-10 mx-auto my-2" />
+                      <p className="text-[10px] text-muted-foreground uppercase">{achievement.date || "Unlocked"}</p>
+                    </div>
+                  ))}
+                  {achievements.length === 0 && (
+                    <div className="col-span-full border border-dashed border-border rounded-xl p-12 text-center bg-muted/20">
+                      <Trophy className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
+                      <p className="text-muted-foreground font-medium">Keep learning to earn unique badges!</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </main>

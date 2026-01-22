@@ -16,31 +16,31 @@ export async function POST(
         }
 
         // 2. Check if already enrolled
-        const { data: existingEnrollment, error: checkError } = await supabase
-            .from("enrollments")
+        const { data: existingProgress, error: checkError } = await supabase
+            .from("user_progress")
             .select("id")
             .eq("user_id", user.id)
             .eq("course_id", courseId)
             .single()
 
-        if (existingEnrollment) {
-            return NextResponse.json({ message: "Already enrolled", enrollmentId: existingEnrollment.id })
+        if (existingProgress) {
+            return NextResponse.json({ message: "Already enrolled", progressId: existingProgress.id })
         }
 
-        // 3. Create enrollment
-        // We assume the courses table has a reference to get initial lesson count
+        // 3. Create entry in user_progress
         const { data: course, error: courseError } = await supabase
             .from("courses")
             .select("total_lessons")
             .eq("id", courseId)
             .single()
 
-        const { data: enrollment, error: enrollError } = await supabase
-            .from("enrollments")
+        const { data: newProgress, error: enrollError } = await supabase
+            .from("user_progress")
             .insert({
                 user_id: user.id,
                 course_id: courseId,
-                progress: 0,
+                status: 'started',
+                progress_percentage: 0,
                 completed_lessons: 0,
                 total_lessons: course?.total_lessons || 0,
                 last_accessed_at: new Date().toISOString()
@@ -48,17 +48,21 @@ export async function POST(
             .select()
             .single()
 
-        if (enrollError) {
-            // If table doesn't exist, we might be in mock mode
-            console.error("Enrollment error:", enrollError.message)
-            return NextResponse.json({
-                message: "Enrollment simulated (Mock Mode)",
-                enrolled: true,
-                courseId
-            }, { status: 201 })
+        // 4. Update User Stats
+        const { data: stats } = await supabase
+            .from("user_stats")
+            .select("courses_enrolled")
+            .eq("user_id", user.id)
+            .single()
+
+        if (stats) {
+            await supabase
+                .from("user_stats")
+                .update({ courses_enrolled: (stats.courses_enrolled || 0) + 1 })
+                .eq("user_id", user.id)
         }
 
-        return NextResponse.json({ message: "Enrolled successfully", enrollment }, { status: 201 })
+        return NextResponse.json({ message: "Enrolled successfully", enrollment: newProgress }, { status: 201 })
     } catch (error) {
         console.error("Error in enrollment API:", error)
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })

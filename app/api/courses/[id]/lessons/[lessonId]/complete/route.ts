@@ -29,28 +29,28 @@ export async function POST(
             console.warn("Supabase error marking lesson complete, falling back to mock behavior:", completeError.message)
         }
 
-        // 3. Update enrollment progress
-        // In a real DB, we'd count completed lessons and update the enrollment
-        const { data: enrollment, error: enrollError } = await supabase
-            .from("enrollments")
+        // 3. Update user_progress
+        const { data: progressEntry, error: progressError } = await supabase
+            .from("user_progress")
             .select("*")
             .eq("user_id", user.id)
             .eq("course_id", courseId)
             .single()
 
-        if (enrollment) {
-            const newCompletedCount = (enrollment.completed_lessons || 0) + 1
-            const totalLessons = enrollment.total_lessons || 1
+        if (progressEntry) {
+            const newCompletedCount = (progressEntry.completed_lessons || 0) + 1
+            const totalLessons = progressEntry.total_lessons || 1
             const newProgress = Math.min(Math.round((newCompletedCount / totalLessons) * 100), 100)
 
             await supabase
-                .from("enrollments")
+                .from("user_progress")
                 .update({
                     completed_lessons: newCompletedCount,
-                    progress: newProgress,
+                    progress_percentage: newProgress,
+                    status: newProgress === 100 ? 'completed' : 'started',
                     last_accessed_at: new Date().toISOString()
                 })
-                .eq("id", enrollment.id)
+                .eq("id", progressEntry.id)
 
             // 4. Update Global User Stats
             const { data: stats } = await supabase
@@ -60,13 +60,38 @@ export async function POST(
                 .single()
 
             if (stats) {
-                // Simple increment for now. Ideally parse lesson duration.
+                const updates: any = {
+                    hours_learned: (stats.hours_learned || 0) + 0.5,
+                }
+
+                if (newProgress === 100) {
+                    updates.courses_completed = (stats.courses_completed || 0) + 1
+
+                    // Unlock "Course Finisher" achievement if not already earned
+                    const { data: existingAchievement } = await supabase
+                        .from("achievements")
+                        .select("id")
+                        .eq("user_id", user.id)
+                        .eq("title", "Course Finisher")
+                        .single()
+
+                    if (!existingAchievement) {
+                        await supabase.from("achievements").insert({
+                            user_id: user.id,
+                            title: "Course Finisher",
+                            icon: "🎓",
+                            unlocked_at: new Date().toISOString()
+                        })
+                        updates.achievements = (stats.achievements || 0) + 1
+                    }
+                }
+
+                // Recalculate average progress rate
+                updates.progress_rate = Math.min(Math.round(((stats.courses_completed * 100 + newProgress) / (stats.courses_enrolled || 1))), 100)
+
                 await supabase
                     .from("user_stats")
-                    .update({
-                        hours_learned: (stats.hours_learned || 0) + 0.5, // Assume ~30 mins per lesson
-                        progress_rate: Math.min(Math.round(((stats.courses_completed * 100 + newProgress) / (stats.courses_enrolled || 1))), 100)
-                    })
+                    .update(updates)
                     .eq("user_id", user.id)
             }
 

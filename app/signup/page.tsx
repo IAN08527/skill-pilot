@@ -100,7 +100,7 @@ export default function SignUpPage() {
 
     setIsLoading(true)
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
       options: {
@@ -114,6 +114,26 @@ export default function SignUpPage() {
       setErrors(prev => ({ ...prev, email: error.message }))
       setIsLoading(false)
       return
+    }
+
+    // Create initial profile and stats records if user was successfully created
+    if (data.user) {
+      await Promise.all([
+        supabase.from("profiles").upsert({
+          id: data.user.id,
+          full_name: formData.fullName,
+          username: formData.email.split('@')[0],
+        }),
+        supabase.from("user_stats").upsert({
+          user_id: data.user.id,
+          courses_enrolled: 0,
+          courses_completed: 0,
+          hours_learned: 0,
+          skills_gained: 0,
+          achievements: 0,
+          progress_rate: 0
+        })
+      ])
     }
 
     setIsLoading(false)
@@ -330,8 +350,8 @@ export default function SignUpPage() {
                           <div
                             key={level}
                             className={`h-1 flex-1 rounded-full transition-all duration-300 ${level <= passwordStrength().level
-                                ? passwordStrength().color
-                                : "bg-white/10"
+                              ? passwordStrength().color
+                              : "bg-white/10"
                               }`}
                           />
                         ))}

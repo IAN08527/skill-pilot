@@ -10,9 +10,9 @@ export async function GET() {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        // 1. Fetch all enrollments
-        const { data: enrollments, error: enrollError } = await supabase
-            .from("enrollments")
+        // 1. Fetch all progress entries
+        const { data: progressEntries, error: progressError } = await supabase
+            .from("user_progress")
             .select(`
                 *,
                 course:courses (*)
@@ -25,10 +25,10 @@ export async function GET() {
             .select("*")
             .eq("user_id", user.id)
 
-        const completedEnrollments = (enrollments || []).filter(e => e.progress === 100)
-        const inProgressEnrollments = (enrollments || []).filter(e => e.progress < 100)
+        const completedEntries = (progressEntries || []).filter(e => e.progress_percentage === 100)
+        const inProgressEntries = (progressEntries || []).filter(e => e.progress_percentage < 100)
 
-        const certificates = completedEnrollments.map(e => ({
+        const certificates = completedEntries.map(e => ({
             id: e.id,
             title: e.course?.title || "Unknown Course",
             issueDate: new Date(e.last_accessed_at).toLocaleDateString("en-US", {
@@ -36,20 +36,20 @@ export async function GET() {
                 month: 'long',
                 day: 'numeric'
             }),
-            credential: `CERT-${e.course_id}-${e.id}`,
+            credential: `CERT-${e.course_id}-${e.id.substring(0, 8)}`,
             courseId: e.course_id
         }))
 
-        const inProgress = inProgressEnrollments.map(e => ({
+        const inProgress = inProgressEntries.map(e => ({
             id: e.id,
             title: e.course?.title || "Unknown Course",
-            progress: e.progress,
+            progress: e.progress_percentage,
             remainingLessons: (e.total_lessons || 0) - (e.completed_lessons || 0),
             courseId: e.course_id
         }))
 
         // Return real data if available, fallback to mock if DB error
-        if (enrollError || achError) {
+        if (progressError || achError) {
             console.warn("Supabase error fetching rewards, falling back to mock.")
             return NextResponse.json({
                 certificates: getMockCertificates(),
