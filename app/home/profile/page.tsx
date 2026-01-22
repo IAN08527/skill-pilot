@@ -44,21 +44,29 @@ export default function ProfilePage() {
   const [isVisible, setIsVisible] = useState(false)
   const [activeNav, setActiveNav] = useState("profile")
   const [isLoading, setIsLoading] = useState(true)
+  const [certificates, setCertificates] = useState<any[]>([])
+  const [inProgressCertificates, setInProgressCertificates] = useState<any[]>([])
+  const [achievements, setAchievements] = useState<any[]>([])
 
   useEffect(() => {
     setIsVisible(true)
     const fetchData = async () => {
       try {
-        const [profileRes, statsRes] = await Promise.all([
+        const [profileRes, statsRes, rewardsRes] = await Promise.all([
           fetch("/api/user/profile"),
-          fetch("/api/user/stats")
+          fetch("/api/user/stats"),
+          fetch("/api/user/rewards")
         ])
 
         const profileData = await profileRes.json()
         const statsData = await statsRes.json()
+        const rewardsData = await rewardsRes.json()
 
         if (profileData.user) setUser(profileData.user)
         if (statsData.stats) setStatsData(statsData.stats)
+        if (rewardsData.certificates) setCertificates(rewardsData.certificates)
+        if (rewardsData.inProgress) setInProgressCertificates(rewardsData.inProgress)
+        if (rewardsData.achievements) setAchievements(rewardsData.achievements)
       } catch (error) {
         console.error("Error fetching data:", error)
       } finally {
@@ -86,44 +94,7 @@ export default function ProfilePage() {
     { label: "Achievements", value: statsData?.achievements || "0", icon: Trophy },
   ]
 
-  const certificates = [
-    {
-      id: 1,
-      title: "Machine Learning Fundamentals",
-      issueDate: "January 15, 2026",
-      credential: "ML-2026-001",
-      progress: 100,
-    },
-    {
-      id: 2,
-      title: "Advanced React Development",
-      issueDate: "December 20, 2025",
-      credential: "REACT-2025-089",
-      progress: 100,
-    },
-    {
-      id: 3,
-      title: "Python for Data Science",
-      issueDate: "November 8, 2025",
-      credential: "PY-DS-2025-042",
-      progress: 100,
-    },
-  ]
 
-  const inProgressCertificates = [
-    {
-      id: 4,
-      title: "Deep Learning Specialization",
-      progress: 65,
-      remainingLessons: 12,
-    },
-    {
-      id: 5,
-      title: "Cloud Architecture Mastery",
-      progress: 30,
-      remainingLessons: 28,
-    },
-  ]
 
   return (
     <div className="min-h-screen bg-background text-foreground flex page-transition">
@@ -266,7 +237,7 @@ export default function ProfilePage() {
             <div className="mb-8">
               <h3 className="text-lg font-medium text-foreground mb-4">Earned Certificates</h3>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {certificates.map((cert, index) => (
+                {certificates.map((cert: any, index: number) => (
                   <div
                     key={cert.id}
                     className="glass-panel rounded-xl p-5 group hover:scale-[1.02] transition-all duration-300"
@@ -329,7 +300,7 @@ export default function ProfilePage() {
             <div>
               <h3 className="text-lg font-medium text-foreground mb-4">In Progress</h3>
               <div className="space-y-4">
-                {inProgressCertificates.map((cert, index) => (
+                {inProgressCertificates.map((cert: any, index: number) => (
                   <div
                     key={cert.id}
                     className="glass-panel rounded-xl p-5 group hover:scale-[1.01] transition-all duration-300"
@@ -366,9 +337,34 @@ export default function ProfilePage() {
                 ))}
               </div>
             </div>
+
+            {/* Achievements */}
+            <div className="mt-8">
+              <h3 className="text-lg font-medium text-foreground mb-4">Achievements & Badges</h3>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {achievements.map((achievement: any, index: number) => (
+                  <div
+                    key={achievement.id}
+                    className="glass-panel rounded-xl p-4 text-center group hover:scale-105 transition-all duration-300"
+                    style={{ animationDelay: `${index * 100}ms` }}
+                  >
+                    <div className="text-4xl mb-3 group-hover:animate-bounce">{achievement.icon}</div>
+                    <h4 className="font-semibold text-foreground text-sm">{achievement.title}</h4>
+                    <p className="text-xs text-muted-foreground mt-1">{achievement.date || "Unlocked"}</p>
+                  </div>
+                ))}
+                {achievements.length === 0 && (
+                  <div className="col-span-full border border-dashed border-border rounded-xl p-8 text-center bg-muted/30">
+                    <Trophy className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
+                    <p className="text-muted-foreground">No achievements yet. Keep learning to earn badges!</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </main>
     </div>
   )
 }
+
