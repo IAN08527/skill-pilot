@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useSearchHistory } from "@/hooks/use-search-history"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useToast } from "@/components/ui/use-toast"
 import Loading from "./loading"
 
 function ExploreContent() {
@@ -41,8 +42,10 @@ function ExploreContent() {
   const [activeCategory, setActiveCategory] = useState("all")
   const [showHistory, setShowHistory] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const { toast } = useToast()
   const [courses, setCourses] = useState<any[]>([])
   const [coursesLoading, setCoursesLoading] = useState(true)
+  const [enrollingId, setEnrollingId] = useState<number | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
   const { history, addToHistory, removeFromHistory, clearHistory, getFilteredHistory } = useSearchHistory()
 
@@ -73,6 +76,42 @@ function ExploreContent() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push("/login")
+  }
+
+  const handleEnroll = async (courseId: number) => {
+    setEnrollingId(courseId)
+    try {
+      const response = await fetch(`/api/courses/${courseId}/enroll`, {
+        method: "POST",
+      })
+      const data = await response.json()
+
+      if (response.ok) {
+        toast({
+          title: "Success!",
+          description: data.message || "You have successfully enrolled in the course.",
+        })
+        // Redirect to course page after a short delay
+        setTimeout(() => {
+          router.push(`/home/course/${courseId}`)
+        }, 1500)
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to enroll. Please try again.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Enrollment error:", error)
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setEnrollingId(null)
+    }
   }
 
   useEffect(() => {
@@ -316,8 +355,17 @@ function ExploreContent() {
                     </div>
                   </div>
 
-                  <Button className="w-full bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all duration-300">
-                    Enroll Now
+                  <Button
+                    onClick={() => handleEnroll(course.id)}
+                    disabled={enrollingId === course.id}
+                    className="w-full bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all duration-300"
+                  >
+                    {enrollingId === course.id ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        Enrolling...
+                      </div>
+                    ) : "Enroll Now"}
                   </Button>
                 </div>
               </div>
