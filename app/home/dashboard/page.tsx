@@ -34,6 +34,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { CourseProjectSuggestions } from "@/components/CourseProjectSuggestions"
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -337,6 +338,11 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Project Suggestions */}
+          <div className={`mt-8 transition-all duration-500 delay-500 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+            <CourseProjectSuggestions courses={enrolledCourses} />
           </div>
         </div>
       </main>

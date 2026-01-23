@@ -1,5 +1,5 @@
 # Real Data Integration - Quick Start Guide
-
+AI driven course recommendtion system from your carrer
 ## 📋 Overview
 
 Your course detail page currently shows **dummy data** because the database tables haven't been created yet. The **code integration is already complete** - you just need to run the database migration!

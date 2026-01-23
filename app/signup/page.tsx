@@ -100,44 +100,42 @@ export default function SignUpPage() {
 
     setIsLoading(true)
 
-    const { data, error } = await supabase.auth.signUp({
-      email: formData.email,
-      password: formData.password,
-      options: {
-        data: {
-          full_name: formData.fullName,
-        },
-      },
-    })
-
-    if (error) {
-      setErrors(prev => ({ ...prev, email: error.message }))
+    if (!supabase || !supabase.auth) {
+      console.error("Supabase client is not initialized properly.")
+      setErrors(prev => ({ ...prev, email: "Configuration error. Please try again later." }))
       setIsLoading(false)
       return
     }
 
-    // Create initial profile and stats records if user was successfully created
-    if (data.user) {
-      await Promise.all([
-        supabase.from("profiles").upsert({
-          id: data.user.id,
-          full_name: formData.fullName,
-          username: formData.email.split('@')[0],
-        }),
-        supabase.from("user_stats").upsert({
-          user_id: data.user.id,
-          courses_enrolled: 0,
-          courses_completed: 0,
-          hours_learned: 0,
-          skills_gained: 0,
-          achievements: 0,
-          progress_rate: 0
-        })
-      ])
-    }
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.fullName,
+          },
+        },
+      })
 
-    setIsLoading(false)
-    router.push("/home")
+      if (signUpError) {
+        console.error("Signup error:", signUpError)
+        setErrors(prev => ({ ...prev, email: signUpError.message }))
+        setIsLoading(false)
+        return
+      }
+
+      if (data?.user) {
+        // Profile and stats are created automatically by database triggers
+        setIsLoading(false)
+        router.push("/home")
+      }
+
+    } catch (err: any) {
+      console.error("Unexpected error during signup:", err)
+      setErrors(prev => ({ ...prev, email: err?.message || "An unexpected error occurred. Please try again." }))
+      setIsLoading(false)
+    }
   }
 
   const handleInputChange = (field: string, value: string) => {
