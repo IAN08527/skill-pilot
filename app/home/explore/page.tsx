@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import Link from "next/link"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Suspense } from "react"
@@ -38,6 +38,7 @@ function ExploreContent() {
 
   const [isVisible, setIsVisible] = useState(false)
   const [searchQuery, setSearchQuery] = useState(initialQuery)
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery)
   const [activeNav, setActiveNav] = useState("explore")
   const [activeCategory, setActiveCategory] = useState("all")
   const [showHistory, setShowHistory] = useState(false)
@@ -45,33 +46,117 @@ function ExploreContent() {
   const { toast } = useToast()
   const [courses, setCourses] = useState<any[]>([])
   const [coursesLoading, setCoursesLoading] = useState(true)
+  const [isFetchingMore, setIsFetchingMore] = useState(false)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const [selectedLevel, setSelectedLevel] = useState("all")
+  const [selectedPrice, setSelectedPrice] = useState("all")
+  const [selectedPlatform, setSelectedPlatform] = useState("all")
   const [enrollingId, setEnrollingId] = useState<number | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
   const { history, addToHistory, removeFromHistory, clearHistory, getFilteredHistory } = useSearchHistory()
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   useEffect(() => {
     setIsVisible(true)
-    const fetchData = async () => {
+    const controller = new AbortController()
+
+    const loadInitialData = async () => {
       setCoursesLoading(true)
+      setPage(1)
+      setHasMore(true)
+
       try {
-        const [userRes, coursesRes] = await Promise.all([
-          fetch("/api/user/profile"),
-          fetch(`/api/courses?category=${activeCategory}&q=${searchQuery}`)
+        const [userRes, coursesRes, externalRes] = await Promise.all([
+          fetch("/api/user/profile", { signal: controller.signal }),
+          fetch(`/api/courses?category=${activeCategory}&q=${debouncedQuery}`, { signal: controller.signal }),
+          debouncedQuery ? fetch(`/api/courses/search/external?q=${debouncedQuery}&page=1`, { signal: controller.signal }) : Promise.resolve({ json: () => ({ courses: [] }) } as any)
         ])
+
         const userData = await userRes.json()
         const coursesData = await coursesRes.json()
+        const externalData = await externalRes.json()
 
         if (userData.user) setUser(userData.user)
-        if (coursesData.courses) setCourses(coursesData.courses)
-      } catch (error) {
-        console.error("Error fetching data:", error)
+
+        let allCourses = coursesData.courses || []
+        if (externalData.courses && externalData.courses.length > 0) {
+          const taggedExternal = externalData.courses.map((c: any) => ({
+            ...c,
+            isExternal: true
+          }))
+          allCourses = [...allCourses, ...taggedExternal]
+        }
+
+        setCourses(allCourses)
+        setHasMore(externalData.hasMore || false)
+      } catch (error: any) {
+        if (error.name !== 'AbortError') {
+          console.error("Error fetching data:", error)
+        }
       } finally {
         setIsLoading(false)
         setCoursesLoading(false)
       }
     }
-    fetchData()
-  }, [activeCategory, searchQuery])
+
+    loadInitialData()
+    return () => controller.abort()
+  }, [activeCategory, debouncedQuery])
+
+  const loadMoreCourses = async () => {
+    if (isFetchingMore || !hasMore) return
+    setIsFetchingMore(true)
+    const nextPage = page + 1
+
+    try {
+      const response = await fetch(`/api/courses/search/external?q=${searchQuery}&page=${nextPage}`)
+      const data = await response.json()
+
+      if (data.courses && data.courses.length > 0) {
+        const taggedExternal = data.courses.map((c: any) => ({
+          ...c,
+          isExternal: true
+        }))
+        setCourses(prev => [...prev, ...taggedExternal])
+        setPage(nextPage)
+        setHasMore(data.hasMore || false)
+      } else {
+        setHasMore(false)
+      }
+    } catch (error) {
+      console.error("Error loading more courses:", error)
+      setHasMore(false)
+    } finally {
+      setIsFetchingMore(false)
+    }
+  }
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isFetchingMore && !coursesLoading) {
+          loadMoreCourses()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [hasMore, isFetchingMore, coursesLoading, page, debouncedQuery])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -135,6 +220,7 @@ function ExploreContent() {
     e.preventDefault()
     if (searchQuery.trim()) {
       addToHistory(searchQuery)
+      setDebouncedQuery(searchQuery) // Trigger immediately on enter
       setShowHistory(false)
     }
   }
@@ -153,20 +239,34 @@ function ExploreContent() {
     { id: "dashboard", icon: LayoutDashboard, label: "Dashboard", href: "/home/dashboard" },
   ]
 
-  const categories = [
+  const categories = useMemo(() => [
     { id: "all", label: "All Courses" },
     { id: "programming", label: "Programming" },
     { id: "design", label: "Design" },
     { id: "business", label: "Business" },
     { id: "ai", label: "AI & ML" },
-  ]
+  ], [])
 
-  const filteredCourses = courses
+  const filteredCourses = useMemo(() => {
+    return courses.filter((course) => {
+      const matchesLevel = selectedLevel === "all" ||
+        (course.level && course.level.toLowerCase().includes(selectedLevel.toLowerCase()))
+
+      const matchesPrice = selectedPrice === "all" ||
+        (course.price && course.price.toLowerCase() === selectedPrice.toLowerCase())
+
+      const matchesPlatform = selectedPlatform === "all" ||
+        (course.platform && course.platform.toLowerCase() === selectedPlatform.toLowerCase()) ||
+        (selectedPlatform === "local" && !course.isExternal)
+
+      return matchesLevel && matchesPrice && matchesPlatform
+    })
+  }, [courses, selectedLevel, selectedPrice, selectedPlatform])
 
   return (
     <div className="min-h-screen bg-background text-foreground flex page-transition">
       {/* Sidebar */}
-      <aside className={`fixed left-0 top-0 bottom-0 w-20 lg:w-64 glass-panel border-r border-border flex flex-col z-40 transition-all duration-500 ${isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
+      <aside className={`fixed left-0 top-0 bottom-0 w-20 lg:w-64 bg-background/95 backdrop-blur-xl border-r border-border flex flex-col z-40 transition-all duration-500 ${isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
         }`}>
         {/* Logo */}
         <div className="p-4 lg:p-6 border-b border-border">
@@ -224,7 +324,7 @@ function ExploreContent() {
       {/* Main Content */}
       <main className="flex-1 ml-20 lg:ml-64 min-h-screen">
         {/* Header */}
-        <header className={`sticky top-0 z-30 glass-panel border-b border-border p-4 lg:p-6 transition-all duration-500 delay-100 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-10"
+        <header className={`sticky top-0 z-30 bg-background/95 backdrop-blur-xl border-b border-border p-4 lg:p-6 transition-all duration-500 delay-100 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-10"
           }`}>
           <div className="flex items-center gap-4">
             <div ref={searchRef} className="relative flex-1 max-w-2xl">
@@ -236,42 +336,42 @@ function ExploreContent() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => setShowHistory(true)}
-                  className="w-full bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 h-12 pl-12 pr-4 rounded-xl transition-all duration-300"
+                  className="w-full bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 h-12 pl-12 pr-4 rounded-xl transition-all duration-300 shadow-sm"
                 />
               </form>
 
               {/* Search History Dropdown */}
               {showHistory && filteredHistory.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 glass-panel rounded-xl border border-border overflow-hidden z-50 animate-fade-in-up">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <History className="w-4 h-4" />
-                      <span className="text-sm">Recent searches</span>
-                    </div>
+                <div className="absolute top-full left-0 right-0 mt-2 glass-panel rounded-2xl overflow-hidden z-50 shadow-xl border border-primary/20 bg-background/95">
+                  <div className="p-2 border-b border-border flex items-center justify-between">
+                    <span className="text-xs font-semibold text-muted-foreground px-2 uppercase tracking-wider">Recent Searches</span>
                     <button
-                      onClick={() => clearHistory()}
-                      className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        clearHistory()
+                      }}
+                      className="text-xs text-primary hover:text-primary/80 px-2 py-1 rounded-md hover:bg-primary/10 transition-colors"
                     >
-                      Clear all
+                      Clear All
                     </button>
                   </div>
-                  <div className="max-h-64 overflow-y-auto">
+                  <div className="max-h-64 overflow-y-auto no-scrollbar">
                     {filteredHistory.map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center justify-between px-4 py-3 hover:bg-muted transition-colors group cursor-pointer"
+                        className="flex items-center justify-between group px-4 py-3 hover:bg-primary/5 transition-colors cursor-pointer"
                         onClick={() => handleHistoryClick(item.query)}
                       >
                         <div className="flex items-center gap-3">
-                          <Search className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-foreground">{item.query}</span>
+                          <History className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                          <span className="text-sm text-foreground">{item.query}</span>
                         </div>
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
                             removeFromHistory(item.id)
                           }}
-                          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-all"
+                          className="p-1 rounded-md hover:bg-red-500/10 text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -281,11 +381,66 @@ function ExploreContent() {
                 </div>
               )}
             </div>
-            <Button variant="outline" className="hidden md:flex items-center gap-2 border-border text-muted-foreground hover:text-foreground hover:bg-muted bg-transparent">
-              <Filter className="w-4 h-4" />
-              Filters
-            </Button>
+
             <ThemeToggle />
+          </div>
+
+          {/* Quick Filters */}
+          <div className="mt-6 flex flex-wrap items-center gap-3 animate-fade-in-up duration-500 delay-200">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-muted/50 border border-border">
+              <Filter className="w-4 h-4 text-muted-foreground" />
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Refine:</span>
+            </div>
+
+            {/* Level Filter */}
+            <select
+              value={selectedLevel}
+              onChange={(e) => setSelectedLevel(e.target.value)}
+              className="px-3 py-1.5 rounded-xl glass-panel text-xs border border-border focus:border-primary/50 focus:ring-1 focus:ring-primary/20 cursor-pointer outline-none transition-all appearance-none min-w-[120px]"
+            >
+              <option value="all">Every Level</option>
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+            </select>
+
+            {/* Price Filter */}
+            <select
+              value={selectedPrice}
+              onChange={(e) => setSelectedPrice(e.target.value)}
+              className="px-3 py-1.5 rounded-xl glass-panel text-xs border border-border focus:border-primary/50 focus:ring-1 focus:ring-primary/20 cursor-pointer outline-none transition-all appearance-none min-w-[120px]"
+            >
+              <option value="all">Every Price</option>
+              <option value="free">Free Only</option>
+              <option value="paid">Premium</option>
+            </select>
+
+            {/* Platform Filter */}
+            <select
+              value={selectedPlatform}
+              onChange={(e) => setSelectedPlatform(e.target.value)}
+              className="px-3 py-1.5 rounded-xl glass-panel text-xs border border-border focus:border-primary/50 focus:ring-1 focus:ring-primary/20 cursor-pointer outline-none transition-all appearance-none min-w-[140px]"
+            >
+              <option value="all">Every Platform</option>
+              <option value="local">Skill Pilot</option>
+              <option value="coursera">Coursera</option>
+              <option value="geeksforgeeks">GeeksforGeeks</option>
+            </select>
+
+            {(selectedLevel !== "all" || selectedPrice !== "all" || selectedPlatform !== "all") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectedLevel("all")
+                  setSelectedPrice("all")
+                  setSelectedPlatform("all")
+                }}
+                className="text-xs text-primary hover:text-primary/80 h-8 px-2"
+              >
+                Reset
+              </Button>
+            )}
           </div>
         </header>
 
@@ -305,7 +460,7 @@ function ExploreContent() {
           {/* Categories */}
           <div className={`flex flex-wrap gap-2 mb-8 transition-all duration-500 delay-300 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}>
-            {categories.map((category) => (
+            {categories.map((category: any) => (
               <button
                 key={category.id}
                 onClick={() => setActiveCategory(category.id)}
@@ -322,19 +477,36 @@ function ExploreContent() {
           {/* Course Grid */}
           <div className={`grid md:grid-cols-2 lg:grid-cols-3 gap-6 transition-all duration-500 delay-400 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}>
-            {filteredCourses.map((course, index) => (
+            {filteredCourses.map((course: any, index: number) => (
               <div
                 key={course.id}
                 className="glass-panel rounded-2xl overflow-hidden group hover:scale-[1.02] transition-all duration-300"
                 style={{ animationDelay: `${index * 100}ms` }}
               >
                 {/* Course Thumbnail */}
-                <div className="h-40 bg-gradient-to-br from-primary/20 to-background relative">
+                <div className="h-40 relative overflow-hidden bg-gradient-to-br from-primary/20 to-background">
+                  {course.thumbnail && (
+                    <img
+                      src={course.thumbnail}
+                      alt={course.title}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = course.platform === 'GeeksforGeeks' ? '/geeksforgeeks.png' : '/placeholder.jpg';
+                      }}
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors duration-300" />
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-14 h-14 rounded-full bg-background/80 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 cursor-pointer">
+                    <div className="w-14 h-14 rounded-full bg-background/80 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 cursor-pointer shadow-lg backdrop-blur-sm">
                       <Play className="w-6 h-6 text-primary ml-1" />
                     </div>
                   </div>
+                  {course.isExternal && (
+                    <div className="absolute top-3 right-3 px-2 py-1 rounded-md bg-background/90 backdrop-blur-sm text-[10px] font-bold uppercase tracking-wider text-primary border border-primary/20 shadow-sm">
+                      {course.platform}
+                    </div>
+                  )}
                 </div>
 
                 {/* Course Info */}
@@ -342,7 +514,9 @@ function ExploreContent() {
                   <h3 className="text-lg font-semibold text-foreground mb-2 group-hover:text-primary transition-colors line-clamp-2">
                     {course.title}
                   </h3>
-                  <p className="text-muted-foreground text-sm mb-3">{course.instructor}</p>
+                  <p className="text-muted-foreground text-sm mb-3">
+                    {course.isExternal ? course.platform : (course.instructor || "Expert Instructor")}
+                  </p>
 
                   <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
                     <div className="flex items-center gap-1">
@@ -355,21 +529,46 @@ function ExploreContent() {
                     </div>
                   </div>
 
-                  <Button
-                    onClick={() => handleEnroll(course.id)}
-                    disabled={enrollingId === course.id}
-                    className="w-full bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all duration-300"
-                  >
-                    {enrollingId === course.id ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        Enrolling...
-                      </div>
-                    ) : "Enroll Now"}
-                  </Button>
+                  {course.isExternal ? (
+                    <Button
+                      asChild
+                      className="w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300"
+                    >
+                      <a href={course.url} target="_blank" rel="noopener noreferrer">
+                        Learn on {course.platform}
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => handleEnroll(course.id)}
+                      disabled={enrollingId === course.id}
+                      className="w-full bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all duration-300"
+                    >
+                      {enrollingId === course.id ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          Enrolling...
+                        </div>
+                      ) : "Enroll Now"}
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Infinite Scroll Trigger & Loader */}
+          <div ref={loadMoreRef} className="py-12 flex flex-col items-center justify-center gap-4">
+            {isFetchingMore ? (
+              <>
+                <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                <p className="text-sm text-muted-foreground animate-pulse">Finding more courses for you...</p>
+              </>
+            ) : hasMore ? (
+              <div className="w-1.5 h-1.5 rounded-full bg-primary/30 animate-bounce" />
+            ) : filteredCourses.length > 0 ? (
+              <p className="text-sm text-muted-foreground">You've reached the end of the list.</p>
+            ) : null}
           </div>
 
           {filteredCourses.length === 0 && (

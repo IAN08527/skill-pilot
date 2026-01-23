@@ -4,12 +4,12 @@ import { NextResponse } from "next/server"
 // POST add course to playlist
 export async function POST(
     request: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
-        const { id: playlistId } = params
+        const { id: playlistId } = await params
 
         if (!user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -60,12 +60,12 @@ export async function POST(
 // DELETE remove course from playlist
 export async function DELETE(
     request: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
-        const { id: playlistId } = params
+        const { id: playlistId } = await params
 
         if (!user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

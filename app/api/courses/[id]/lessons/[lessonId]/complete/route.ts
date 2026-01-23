@@ -3,11 +3,11 @@ import { NextResponse } from "next/server"
 
 export async function POST(
     request: Request,
-    { params }: { params: { id: string, lessonId: string } }
+    { params }: { params: Promise<{ id: string, lessonId: string }> }
 ) {
     try {
         const supabase = await createClient()
-        const { id: courseId, lessonId } = params
+        const { id: courseId, lessonId } = await params
 
         // 1. Get user
         const { data: { user } } = await supabase.auth.getUser()
@@ -29,28 +29,27 @@ export async function POST(
             console.warn("Supabase error marking lesson complete, falling back to mock behavior:", completeError.message)
         }
 
-        // 3. Update user_progress
-        const { data: progressEntry, error: progressError } = await supabase
-            .from("user_progress")
+        // 3. Update enrollments
+        const { data: enrollment, error: enrollError } = await supabase
+            .from("enrollments")
             .select("*")
             .eq("user_id", user.id)
             .eq("course_id", courseId)
             .single()
 
-        if (progressEntry) {
-            const newCompletedCount = (progressEntry.completed_lessons || 0) + 1
-            const totalLessons = progressEntry.total_lessons || 1
+        if (enrollment) {
+            const newCompletedCount = (enrollment.completed_lessons || 0) + 1
+            const totalLessons = enrollment.total_lessons || 1
             const newProgress = Math.min(Math.round((newCompletedCount / totalLessons) * 100), 100)
 
             await supabase
-                .from("user_progress")
+                .from("enrollments")
                 .update({
                     completed_lessons: newCompletedCount,
-                    progress_percentage: newProgress,
-                    status: newProgress === 100 ? 'completed' : 'started',
+                    progress: newProgress,
                     last_accessed_at: new Date().toISOString()
                 })
-                .eq("id", progressEntry.id)
+                .eq("id", enrollment.id)
 
             // 4. Update Global User Stats
             const { data: stats } = await supabase
@@ -67,27 +66,15 @@ export async function POST(
                 if (newProgress === 100) {
                     updates.courses_completed = (stats.courses_completed || 0) + 1
 
-                    // Unlock "Course Finisher" achievement if not already earned
-                    const { data: existingAchievement } = await supabase
-                        .from("achievements")
-                        .select("id")
-                        .eq("user_id", user.id)
-                        .eq("title", "Course Finisher")
-                        .single()
-
-                    if (!existingAchievement) {
-                        await supabase.from("achievements").insert({
+                    // Unlock "Course Finisher" achievement
+                    await supabase.from("achievements")
+                        .upsert({
                             user_id: user.id,
                             title: "Course Finisher",
                             icon: "🎓",
                             unlocked_at: new Date().toISOString()
-                        })
-                        updates.achievements = (stats.achievements || 0) + 1
-                    }
+                        }, { onConflict: 'user_id,title' })
                 }
-
-                // Recalculate average progress rate
-                updates.progress_rate = Math.min(Math.round(((stats.courses_completed * 100 + newProgress) / (stats.courses_enrolled || 1))), 100)
 
                 await supabase
                     .from("user_stats")
@@ -103,8 +90,8 @@ export async function POST(
         }
 
         return NextResponse.json({
-            message: "Lesson marked as complete (Mock Mode)",
-            simulated: true
+            message: "Lesson marked as complete (No enrollment found)",
+            success: true
         })
     } catch (error) {
         console.error("Error in lesson completion API:", error)

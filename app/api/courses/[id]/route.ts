@@ -3,45 +3,120 @@ import { NextResponse } from "next/server"
 
 export async function GET(
     request: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const supabase = await createClient()
-        const { id } = params
+        const { id } = await params
+
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser()
 
         // Fetch course details
-        const { data: course, error } = await supabase
+        const { data: course, error: courseError } = await supabase
             .from("courses")
             .select("*")
             .eq("id", id)
             .single()
 
-        if (error) {
-            console.warn("Supabase error fetching course details, falling back to mock:", error.message)
-            return NextResponse.json({
-                course: getMockCourse(id),
-                source: "mock"
-            })
+        if (courseError) {
+            console.error("Error fetching course:", courseError.message)
+            return NextResponse.json(
+                { error: "Course not found", details: courseError.message },
+                { status: 404 }
+            )
         }
 
-        // Fetch modules and lessons for this course
+        // Fetch user enrollment for progress
+        let progress = 0
+        let completedLessons = 0
+        let completedLessonIds: string[] = []
+
+        if (user) {
+            const { data: enrollment } = await supabase
+                .from("enrollments")
+                .select("progress, completed_lessons")
+                .eq("course_id", id)
+                .eq("user_id", user.id)
+                .single()
+
+            if (enrollment) {
+                progress = enrollment.progress || 0
+                completedLessons = enrollment.completed_lessons || 0
+            }
+
+            // Fetch completed lesson IDs for this user
+            const { data: completions } = await supabase
+                .from("lesson_completions")
+                .select("lesson_id")
+                .eq("course_id", id)
+                .eq("user_id", user.id)
+
+            if (completions) {
+                completedLessonIds = completions.map(c => c.lesson_id)
+            }
+        }
+
+        // Fetch modules with lessons and chapters
         const { data: modules, error: modulesError } = await supabase
             .from("modules")
             .select(`
-        *,
-        lessons (*)
-      `)
+                *,
+                lessons (
+                    *,
+                    chapters (*)
+                )
+            `)
             .eq("course_id", id)
             .order("order_index", { ascending: true })
 
         if (modulesError) {
-            return NextResponse.json({ course })
+            console.error("Error fetching modules:", modulesError.message)
+            // Return course without modules
+            return NextResponse.json({
+                course: {
+                    ...course,
+                    totalLessons: course.total_lessons || 0,
+                    completedLessons,
+                    progress,
+                    modules: []
+                }
+            })
         }
 
-        return NextResponse.json({ course: { ...course, modules } })
+        // Sort lessons within each module and mark completed lessons
+        const sortedModules = (modules || []).map(module => {
+            const sortedLessons = (module.lessons || [])
+                .sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0))
+                .map((lesson: any) => ({
+                    ...lesson,
+                    completed: completedLessonIds.includes(lesson.id),
+                    chapters: (lesson.chapters || []).sort((a: any, b: any) =>
+                        (a.timestamp_seconds || 0) - (b.timestamp_seconds || 0)
+                    )
+                }))
+
+            return {
+                ...module,
+                lessons: sortedLessons
+            }
+        })
+
+        return NextResponse.json({
+            course: {
+                ...course,
+                totalLessons: course.total_lessons || 0,
+                completedLessons,
+                progress,
+                modules: sortedModules
+            }
+        })
     } catch (error) {
         console.error("Error in course details API:", error)
-        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
+        return NextResponse.json(
+            { error: "Internal Server Error" },
+            { status: 500 }
+        )
     }
 }
 

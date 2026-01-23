@@ -15,7 +15,8 @@ import {
   Wand2,
   Clock,
   Target,
-  CheckCircle
+  CheckCircle,
+  Play
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,6 +37,7 @@ export default function CreateCoursePage() {
   const [currentStep, setCurrentStep] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [generatedCourseId, setGeneratedCourseId] = useState<string | null>(null)
+  const [generatedCourse, setGeneratedCourse] = useState<any>(null)
   const { toast } = useToast()
   const [formData, setFormData] = useState({
     topic: "",
@@ -92,7 +94,7 @@ export default function CreateCoursePage() {
 
     try {
       // Start API call in background
-      const genPromise = fetch("/api/courses/generate", {
+      const genPromise = fetch("/api/courses/custom/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)
@@ -109,6 +111,7 @@ export default function CreateCoursePage() {
 
       if (response.ok) {
         setGeneratedCourseId(data.courseId)
+        setGeneratedCourse(data.course)
         setIsGenerating(false)
         setIsGenerated(true)
 
@@ -117,10 +120,10 @@ export default function CreateCoursePage() {
           description: "Your personalized learning path is ready.",
         })
 
-        // Auto redirect after a short delay
+        // Auto redirect after a longer delay so user can see the roadmap
         setTimeout(() => {
           router.push(`/home/course/${data.courseId}`)
-        }, 2000)
+        }, 5000)
       } else {
         throw new Error(data.error || "Failed to generate course")
       }
@@ -333,14 +336,33 @@ export default function CreateCoursePage() {
               <div className="glass-panel rounded-xl p-6 text-left mb-6">
                 <h3 className="text-lg font-semibold text-primary mb-4">Course Outline</h3>
                 <div className="space-y-3">
-                  {["Introduction & Fundamentals", "Core Concepts Deep Dive", "Hands-on Projects", "Advanced Topics", "Final Project & Review"].map((module, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-muted">
-                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium text-sm">
-                        {i + 1}
+                  {generatedCourse?.roadmap ? (
+                    generatedCourse.roadmap.map((section: any, i: number) => (
+                      <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-muted group hover:bg-muted/80 transition-colors">
+                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium text-sm">
+                          {i + 1}
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-foreground font-medium block">{section.section}</span>
+                          {section.videos?.[0] && (
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1 mt-0.5">
+                              <Play className="w-2.5 h-2.5" />
+                              {section.videos[0].title}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <span className="text-foreground">{module}</span>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    ["Analyzing Topic", "Fetching Best Content", "Curating Roadmap", "Optimizing Path"].map((module, i) => (
+                      <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-muted opacity-50">
+                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium text-sm">
+                          {i + 1}
+                        </div>
+                        <span className="text-foreground">{module}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 

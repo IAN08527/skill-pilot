@@ -10,9 +10,9 @@ export async function GET() {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        // Attempt to fetch from user_progress joined with courses
-        const { data: progressEntries, error } = await supabase
-            .from("user_progress")
+        // Fetch from enrollments joined with courses
+        const { data: enrollmentEntries, error } = await supabase
+            .from("enrollments")
             .select(`
                 *,
                 course:courses (*)
@@ -20,7 +20,7 @@ export async function GET() {
             .eq("user_id", user.id)
 
         if (error) {
-            console.warn("Supabase error fetching user progress, falling back to mock:", error.message)
+            console.error("Supabase error fetching enrollments:", error.message)
             return NextResponse.json({
                 courses: getMockEnrolledCourses(),
                 source: "mock"
@@ -28,13 +28,14 @@ export async function GET() {
         }
 
         // Transform joined data to match expectation
-        const courses = progressEntries.map(e => ({
+        const courses = enrollmentEntries.map(e => ({
             ...e.course,
-            progress: e.progress_percentage,
+            enrollmentId: e.id,
+            progress: e.progress,
             completed: e.completed_lessons,
             lessons: e.total_lessons,
             lastAccessed: e.last_accessed_at,
-            status: e.status
+            skills: e.course.skills || []
         }))
 
         return NextResponse.json({ courses })
